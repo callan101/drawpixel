@@ -116,8 +116,19 @@
         text-transform: uppercase;
       }
 
-      .hud-size.inactive {
+      .hud-size .size-controls {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+
+      .hud-size .size-controls.inactive {
         opacity: 0.45;
+      }
+
+      .hud-size .tool {
+        width: 36px;
+        height: 36px;
       }
 
       .hud-size input[type="range"] {
@@ -235,6 +246,152 @@
         color: inherit;
         appearance: none;
         -webkit-appearance: none;
+        /* Swatches are draggable (reorder / drag off to delete). */
+        touch-action: none;
+      }
+
+      .hud-squeeze {
+        top: 16px;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 6px;
+      }
+
+      .hud-squeeze .tool {
+        width: auto;
+        height: 36px;
+        padding: 0 14px;
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        touch-action: none;
+        -webkit-touch-callout: none;
+      }
+
+      /* Catches every pointer while open so nothing underneath reacts. */
+      .quick-menu {
+        position: fixed;
+        inset: 0;
+        z-index: 25;
+        touch-action: none;
+      }
+
+      .qm-svg {
+        position: absolute;
+        overflow: visible;
+        filter: drop-shadow(0 8px 20px rgba(0, 0, 0, 0.18));
+      }
+
+      /* Transforms are driven every pointer move by proximity; the short
+         transition just smooths over gaps between events. */
+      .qm-item {
+        transform-box: fill-box;
+        transform-origin: center;
+        transition: transform 0.07s linear;
+      }
+
+      .qm-arc {
+        fill: var(--panel);
+        stroke: var(--line);
+        stroke-width: 1;
+        transition: fill 0.1s, stroke 0.1s, stroke-width 0.1s;
+      }
+
+      .qm-icon {
+        fill: none;
+        stroke: var(--ink);
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .qm-sub {
+        transform-box: view-box;
+        transform-origin: 50% 50%;
+        transition: opacity 0.1s linear, transform 0.1s linear;
+      }
+
+      .qm-colors.expanded .qm-arc {
+        stroke: var(--ink);
+        stroke-width: 2.5;
+      }
+
+      .qm-flex .qm-arc {
+        stroke-dasharray: 3 3;
+      }
+
+      .qm-item.current .qm-arc {
+        stroke: var(--ink);
+        stroke-width: 1.5;
+      }
+
+      .qm-item.empty {
+        opacity: 0.35;
+      }
+
+      .qm-item.hot .qm-arc {
+        stroke: var(--ink);
+        stroke-width: 2.5;
+      }
+
+      .qm-tool.hot .qm-arc {
+        fill: var(--ink);
+      }
+
+      .qm-tool.hot .qm-icon {
+        stroke: var(--panel);
+      }
+
+      .qm-center {
+        position: absolute;
+        display: grid;
+        place-items: center;
+        border: 1px dashed var(--line);
+        border-radius: 50%;
+        background: var(--panel);
+        color: var(--muted);
+        font-size: 10px;
+        line-height: 1.1;
+        text-align: center;
+        overflow: hidden;
+      }
+
+      .palette-slot[data-index] {
+        transition: transform 0.12s, box-shadow 0.12s, border-color 0.12s;
+      }
+
+      /* Hover: same border cue as tools, plus a slight lift hinting it can be dragged. */
+      .palette-slot[data-index]:hover:not(.active):not(.placeholder) {
+        border-color: var(--muted);
+      }
+
+      .palette-slot[data-index]:hover:not(.placeholder) {
+        transform: translateY(-1px);
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+        cursor: grab;
+      }
+
+      .palette-slot.placeholder {
+        opacity: 0.25;
+      }
+
+      .palette-slot.placeholder.discarding {
+        display: none;
+      }
+
+      .palette-ghost {
+        position: fixed;
+        z-index: 30;
+        margin: 0;
+        pointer-events: none;
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25);
+        transform: scale(1.08);
+        transition: transform 0.12s, opacity 0.12s;
+      }
+
+      .palette-ghost.discard {
+        opacity: 0.4;
+        transform: scale(0.8) rotate(-8deg);
       }
 
       .palette-slot.active {
@@ -529,6 +686,11 @@
         </button>
       </div>
       <div class="tool-group icons">
+        <button type="button" class="tool" id="btn-snap" aria-pressed="false" title="Snap: lines to 45°, selections to grid (or hold Shift)" aria-label="Snap">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v9a6 6 0 0 0 12 0V3h-4v9a2 2 0 0 1-4 0V3z"/><path d="M6 7h4M14 7h4"/></svg>
+        </button>
+      </div>
+      <div class="tool-group icons">
         <button type="button" class="tool" id="btn-cut" disabled title="Cut (⌘/Ctrl+X)" aria-label="Cut">
           <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M9.2 15.5L18 4M14.8 15.5L6 4"/></svg>
         </button>
@@ -537,6 +699,9 @@
         </button>
         <button type="button" class="tool" id="btn-paste" title="Paste image or selection (⌘/Ctrl+V)" aria-label="Paste">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h6"/><path d="M10 4h4a1 1 0 0 1 1 1v1H9V5a1 1 0 0 1 1-1z"/><rect x="6" y="6" width="12" height="14" rx="1.5"/></svg>
+        </button>
+        <button type="button" class="tool" id="btn-delete" disabled title="Delete selection (Delete)" aria-label="Delete selection">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 7h14"/><path d="M10 4h4"/><path d="M7 7l1 13h8l1-13"/></svg>
         </button>
       </div>
       <div class="tool-group icons">
@@ -627,11 +792,24 @@
       <div class="palette-grid" id="palette"></div>
     </div>
 
-    <div class="hud hud-size" id="size-hud" aria-label="Brush size">
-      <span>size</span>
-      <input id="brush-size" type="range" min="1" max="32" step="1" value="1" />
-      <span id="brush-size-val">1</span>
+    <div class="hud hud-size" id="size-hud" aria-label="History and brush size">
+      <button type="button" class="tool" id="btn-undo" disabled title="Undo (⌘/Ctrl+Z · two-finger tap)" aria-label="Undo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 14L4 9l5-5"/><path d="M4 9h11a5 5 0 0 1 0 10h-3"/></svg>
+      </button>
+      <button type="button" class="tool" id="btn-redo" disabled title="Redo (⌘/Ctrl+Shift+Z · three-finger tap)" aria-label="Redo">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14l5-5-5-5"/><path d="M20 9H9a5 5 0 0 0 0 10h3"/></svg>
+      </button>
+      <span class="size-controls" id="size-controls">
+        <span>size</span>
+        <input id="brush-size" type="range" min="1" max="32" step="1" value="1" />
+        <span id="brush-size-val">1</span>
+      </span>
     </div>
+
+    <div class="hud hud-squeeze">
+      <button type="button" class="tool" id="btn-squeeze" title="Hold to open the quick menu (stand-in for Pencil squeeze; right-click with a mouse)" aria-label="Quick menu (hold)">squeeze</button>
+    </div>
+    <div class="quick-menu" id="quick-menu" hidden></div>
 
 
     <div class="color-popover" id="color-popover" role="dialog" aria-label="Color picker" hidden>
@@ -676,6 +854,13 @@
           "#1a1e27",
         ];
         const MAX_PALETTE_SIZE = 32;
+        const DISCARD_MARGIN = 24; // px outside the palette bar that deletes on drop
+        const TAP_MAX_MS = 300;
+        const TAP_MAX_MOVE = 10;
+        // QuickShape: hold still at the end of a brush/eraser stroke to snap it
+        // into a straight line from where the stroke started.
+        const QS_HOLD_MS = 500;
+        const QS_STILL_PX = 6; // movement under this (screen px) counts as still
 
         const canvas = document.getElementById("stage");
         const ctx = canvas.getContext("2d", { alpha: false });
@@ -685,7 +870,11 @@
         const lineBtn = document.getElementById("tool-line");
         const selectBtn = document.getElementById("tool-select");
         const eyedropperBtn = document.getElementById("tool-eyedropper");
-        const sizeHud = document.getElementById("size-hud");
+        const sizeControls = document.getElementById("size-controls");
+        const undoBtn = document.getElementById("btn-undo");
+        const redoBtn = document.getElementById("btn-redo");
+        const snapBtn = document.getElementById("btn-snap");
+        const deleteBtn = document.getElementById("btn-delete");
         const brushSizeInput = document.getElementById("brush-size");
         const brushSizeVal = document.getElementById("brush-size-val");
         const cutBtn = document.getElementById("btn-cut");
@@ -728,12 +917,19 @@
           paletteIndex: 0,
           color: DEFAULT_PALETTE[0],
           tool: "brush",
+          prevTool: null,
           brushSize: 1,
           drawing: false,
           lining: false,
+          lineErase: false, // line being drawn erases (snapped eraser stroke)
+          strokeStart: null, // first cell of the current brush/eraser stroke
+          strokeBase: null, // pixels before the current stroke
+          holdPos: null,
+          holdTimer: null,
           lineStart: null,
           lineEnd: null,
           shiftDown: false,
+          snap: false,
           panning: false,
           selecting: false,
           moving: false,
@@ -747,10 +943,15 @@
           moveGrab: null,
           clipboard: null,
           hover: { x: 0, y: 0 },
+          hoverVisible: false,
+          lastCanvasClient: null, // last pen/mouse position over the canvas
           dpr: 1,
           needsDraw: true,
+          // Pen/mouse pointer currently pressed; fingers are tracked in `pointers`.
+          penId: null,
           pointers: new Map(),
           pinch: null,
+          touchGesture: null,
           dashOffset: 0,
           bgColor: "#f2f2f2",
           accentColor: "#1a1a1a",
@@ -763,6 +964,14 @@
           gridColor: "#b0b0b0",
           gridThick: 1,
         };
+
+        // Capture can throw (e.g. the pointer already ended); never let it
+        // abort the rest of an input handler.
+        function capturePointer(el, id) {
+          try {
+            el.setPointerCapture(id);
+          } catch (_) {}
+        }
 
         function key(x, y) {
           return x + "," + y;
@@ -931,12 +1140,19 @@
           };
         }
 
-        function captureHistory() {
-          return {
+        // Palette is only captured for palette edits, so undoing a stroke
+        // never reverts colour changes made since.
+        function captureHistory(withPalette) {
+          const snap = {
             pixels: new Map(pixels),
             float: cloneFloat(state.float),
             selection: cloneSelection(state.selection),
           };
+          if (withPalette) {
+            snap.palette = state.palette.slice();
+            snap.paletteIndex = state.paletteIndex;
+          }
+          return snap;
         }
 
         function applyHistory(snap) {
@@ -944,6 +1160,13 @@
           for (const [k, c] of snap.pixels) pixels.set(k, c);
           state.float = snap.float;
           state.selection = snap.selection;
+          if (snap.palette) {
+            state.palette = snap.palette;
+            state.paletteIndex = snap.paletteIndex;
+            state.color = state.palette[state.paletteIndex];
+            closeColorPicker();
+            buildPalette();
+          }
           state.drawing = false;
           state.lining = false;
           state.lineStart = null;
@@ -960,24 +1183,27 @@
           state.needsDraw = true;
         }
 
-        function pushUndo() {
-          undoStack.push(captureHistory());
+        function pushUndo(withPalette) {
+          undoStack.push(captureHistory(withPalette));
           if (undoStack.length > UNDO_LIMIT) undoStack.shift();
           redoStack.length = 0;
+          syncActionButtons();
         }
 
         function undo() {
           if (!undoStack.length) return;
-          redoStack.push(captureHistory());
+          const snap = undoStack.pop();
+          redoStack.push(captureHistory(!!snap.palette));
           if (redoStack.length > UNDO_LIMIT) redoStack.shift();
-          applyHistory(undoStack.pop());
+          applyHistory(snap);
         }
 
         function redo() {
           if (!redoStack.length) return;
-          undoStack.push(captureHistory());
+          const snap = redoStack.pop();
+          undoStack.push(captureHistory(!!snap.palette));
           if (undoStack.length > UNDO_LIMIT) undoStack.shift();
-          applyHistory(redoStack.pop());
+          applyHistory(snap);
         }
 
         function saveSettings(immediate) {
@@ -1002,6 +1228,7 @@
                   gridThick: state.gridThick,
                   tool: state.tool,
                   brushSize: state.brushSize,
+                  snap: state.snap,
                   scale: state.scale,
                   camX: state.camX,
                   camY: state.camY,
@@ -1084,6 +1311,7 @@
             if (data.brushSize != null) {
               state.brushSize = clampInt(data.brushSize, 1, 32, 1);
             }
+            if (typeof data.snap === "boolean") state.snap = data.snap;
             if (Number.isFinite(data.scale)) {
               state.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, data.scale));
             }
@@ -1217,7 +1445,7 @@
         }
 
         function constrainLineEnd(start, end) {
-          if (!state.shiftDown || !start) return end;
+          if (!(state.shiftDown || state.snap) || !start) return end;
           const dx = end.x - start.x;
           const dy = end.y - start.y;
           const adx = Math.abs(dx);
@@ -1285,7 +1513,7 @@
             state.tool === "brush" ||
             state.tool === "eraser" ||
             state.tool === "line";
-          sizeHud.classList.toggle("inactive", !active);
+          sizeControls.classList.toggle("inactive", !active);
           brushSizeInput.value = String(state.brushSize);
           brushSizeVal.textContent = String(state.brushSize);
         }
@@ -1303,6 +1531,7 @@
         }
 
         function setTool(tool) {
+          if (tool !== state.tool) state.prevTool = state.tool;
           if (state.float && tool !== "select") {
             pushUndo();
             commitFloat();
@@ -1352,7 +1581,7 @@
             slot.style.background = hex;
             slot.dataset.color = hex;
             slot.title =
-              index + 1 + ": " + hex + " · click select/edit · shift-click delete";
+              index + 1 + ": " + hex + " · click select/edit · drag to reorder · drag off to delete";
           }
           if (state.paletteIndex === index) state.color = hex;
           saveSettings();
@@ -1376,6 +1605,7 @@
         function removePaletteSlot(index) {
           if (state.palette.length <= 1) return;
           if (index < 0 || index >= state.palette.length) return;
+          pushUndo(true);
           state.palette.splice(index, 1);
           if (state.paletteIndex > index) state.paletteIndex -= 1;
           if (state.paletteIndex >= state.palette.length) {
@@ -1540,8 +1770,10 @@
           colorPopover.style.top = top + "px";
         }
 
-        function openColorPicker(anchor, hex, onChange) {
+        // paletteSlot: index of the swatch being edited, or null for other swatches.
+        function openColorPicker(anchor, hex, onChange, paletteSlot) {
           colorPicker.anchor = anchor;
+          colorPicker.paletteSlot = paletteSlot == null ? null : paletteSlot;
           colorPicker.onChange = onChange;
           setPickerFromHex(hex || "#ffffff");
           colorPicker.open = true;
@@ -1554,6 +1786,7 @@
           colorPicker.open = false;
           colorPicker.onChange = null;
           colorPicker.anchor = null;
+          colorPicker.paletteSlot = null;
           colorPicker.dragging = null;
           colorPopover.classList.remove("open");
           colorPopover.hidden = true;
@@ -1670,8 +1903,141 @@
           if (!colorPicker.open) return;
           if (colorPopover.contains(e.target)) return;
           if (colorPicker.anchor && colorPicker.anchor.contains(e.target)) return;
+          // Tapping another swatch retargets the picker (handled in its click).
+          if (
+            colorPicker.paletteSlot != null &&
+            e.target.closest &&
+            e.target.closest(".palette-slot[data-index]")
+          ) {
+            return;
+          }
           closeColorPicker();
         });
+
+        // Drag a swatch to reorder it; drop it off the palette bar to delete it.
+        // A press that doesn't move falls through to the normal click.
+        const paletteHud = paletteEl.parentElement;
+        let paletteDrag = null;
+
+        function swatchTap(slot, i, shiftKey) {
+          if (shiftKey) {
+            removePaletteSlot(i);
+            return;
+          }
+          const pickerOnSwatch = colorPicker.open && colorPicker.paletteSlot != null;
+          if (pickerOnSwatch && colorPicker.paletteSlot === i) {
+            closeColorPicker();
+          } else if (pickerOnSwatch || state.paletteIndex === i) {
+            selectPaletteIndex(i);
+            openColorPicker(slot, state.palette[i], (hex) => setSlotColor(i, hex), i);
+          } else {
+            selectPaletteIndex(i);
+          }
+        }
+
+        // iOS can still claim a drag as a scroll; block that while a swatch is held.
+        paletteHud.addEventListener(
+          "touchmove",
+          (e) => {
+            if (paletteDrag) e.preventDefault();
+          },
+          { passive: false }
+        );
+
+        function paletteDragStart(slot, index, e) {
+          if (paletteDrag) return;
+          paletteDrag = {
+            slot,
+            from: index,
+            id: e.pointerId,
+            sx: e.clientX,
+            sy: e.clientY,
+            active: false,
+            ghost: null,
+            offX: 0,
+            offY: 0,
+            discard: false,
+          };
+        }
+
+        // On window, not the swatch: reordering moves the swatch in the DOM,
+        // which would drop pointer capture mid-drag.
+        window.addEventListener("pointermove", paletteDragMove);
+        window.addEventListener("pointerup", paletteDragEnd);
+        window.addEventListener("pointercancel", paletteDragEnd);
+
+        function paletteDragMove(e) {
+          const d = paletteDrag;
+          if (!d || e.pointerId !== d.id) return;
+          if (!d.active) {
+            if (Math.hypot(e.clientX - d.sx, e.clientY - d.sy) < TAP_MAX_MOVE) return;
+            d.active = true;
+            closeColorPicker();
+            const r = d.slot.getBoundingClientRect();
+            d.offX = d.sx - r.left;
+            d.offY = d.sy - r.top;
+            d.ghost = d.slot.cloneNode(true);
+            d.ghost.classList.add("palette-ghost");
+            d.ghost.style.width = r.width + "px";
+            d.ghost.style.height = r.height + "px";
+            document.body.appendChild(d.ghost);
+            d.slot.classList.add("placeholder");
+          }
+          d.ghost.style.left = e.clientX - d.offX + "px";
+          d.ghost.style.top = e.clientY - d.offY + "px";
+
+          const pr = paletteHud.getBoundingClientRect();
+          const outside =
+            e.clientX < pr.left - DISCARD_MARGIN ||
+            e.clientX > pr.right + DISCARD_MARGIN ||
+            e.clientY < pr.top - DISCARD_MARGIN ||
+            e.clientY > pr.bottom + DISCARD_MARGIN;
+          d.discard = outside && state.palette.length > 1;
+          d.ghost.classList.toggle("discard", d.discard);
+          d.slot.classList.toggle("discarding", d.discard);
+          if (outside) return;
+
+          // Live reorder preview: move the placeholder before the first swatch
+          // whose midpoint is below the pointer.
+          let before = paletteEl.querySelector(".palette-add");
+          for (const s of paletteEl.querySelectorAll(".palette-slot[data-index]")) {
+            if (s === d.slot) continue;
+            const r = s.getBoundingClientRect();
+            if (e.clientY < r.top + r.height / 2) {
+              before = s;
+              break;
+            }
+          }
+          if (d.slot.nextSibling !== before) paletteEl.insertBefore(d.slot, before);
+        }
+
+        function paletteDragEnd(e) {
+          const d = paletteDrag;
+          if (!d || e.pointerId !== d.id) return;
+          paletteDrag = null;
+          if (!d.active) {
+            if (e.type === "pointerup") swatchTap(d.slot, d.from, e.shiftKey);
+            return;
+          }
+          d.ghost.remove();
+
+          if (e.type === "pointerup" && d.discard) {
+            removePaletteSlot(d.from);
+            return;
+          }
+          const order = [...paletteEl.querySelectorAll(".palette-slot[data-index]")].map(
+            (s) => +s.dataset.index
+          );
+          if (e.type === "pointerup" && order.some((k, pos) => k !== pos)) {
+            pushUndo(true);
+            const old = state.palette.slice();
+            state.palette = order.map((k) => old[k]);
+            state.paletteIndex = order.indexOf(state.paletteIndex);
+            state.color = state.palette[state.paletteIndex];
+            saveSettings();
+          }
+          buildPalette();
+        }
 
         function buildPalette() {
           paletteEl.innerHTML = "";
@@ -1682,24 +2048,21 @@
             slot.dataset.index = String(i);
             slot.dataset.color = color;
             slot.title =
-              i + 1 + ": " + color + " · click select/edit · shift-click delete";
+              i + 1 + ": " + color + " · click select/edit · drag to reorder · drag off to delete";
             slot.style.background = color;
             slot.setAttribute("aria-label", "Palette color " + (i + 1));
             const idx = document.createElement("span");
             idx.className = "idx";
             idx.textContent = String(i + 1);
             slot.appendChild(idx);
+
+            slot.addEventListener("pointerdown", (e) => paletteDragStart(slot, i, e));
+
+            // Pointer taps are handled on pointerup (iOS drops the click for
+            // Pencil taps that move slightly); this only catches keyboard activation.
             slot.addEventListener("click", (e) => {
-              if (e.shiftKey) {
-                e.preventDefault();
-                removePaletteSlot(i);
-                return;
-              }
-              if (state.paletteIndex === i) {
-                openColorPicker(slot, state.palette[i], (hex) => setSlotColor(i, hex));
-              } else {
-                selectPaletteIndex(i);
-              }
+              if (e.detail !== 0) return;
+              swatchTap(slot, i, e.shiftKey);
             });
             paletteEl.appendChild(slot);
           });
@@ -1718,8 +2081,11 @@
               '.palette-slot[data-index="' + index + '"]'
             );
             if (slot) {
-              openColorPicker(slot, state.palette[index], (hex) =>
-                setSlotColor(index, hex)
+              openColorPicker(
+                slot,
+                state.palette[index],
+                (hex) => setSlotColor(index, hex),
+                index
               );
             }
           });
@@ -1977,24 +2343,65 @@
           }
         }
 
-        async function downloadSelectionPng() {
-          const rect = ensureSelectionForExport();
-          if (!rect) return;
-          setExportMessage("Rendering…");
-          const blob = await buildSelectionPngBlob();
-          if (!blob) {
-            setExportMessage("Nothing to export");
+        /** Bounding box of every painted pixel, or null when the canvas is empty. */
+        function contentBounds() {
+          if (!pixels.size) return null;
+          let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+          for (const k of pixels.keys()) {
+            const p = parseKey(k);
+            if (p.x < x0) x0 = p.x;
+            if (p.y < y0) y0 = p.y;
+            if (p.x > x1) x1 = p.x;
+            if (p.y > y1) y1 = p.y;
+          }
+          return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+        }
+
+        // Artifact viewers block plain download links; use their downloads
+        // capability when present, else fall back to an <a download>.
+        const downloadsReady =
+          window.claude && typeof window.claude.use === "function"
+            ? window.claude.use("downloads").catch(() => null)
+            : Promise.resolve(null);
+
+        async function saveBlob(blob, filename) {
+          const downloads = await downloadsReady;
+          if (downloads) {
+            await downloads.save({ filename, data: blob });
             return;
           }
           const url = URL.createObjectURL(blob);
           const a = document.createElement("a");
           a.href = url;
-          a.download = "draw-" + rect.w + "x" + rect.h + ".png";
+          a.download = filename;
           document.body.appendChild(a);
           a.click();
           a.remove();
           URL.revokeObjectURL(url);
-          setExportMessage("Downloaded " + rect.w + "×" + rect.h);
+        }
+
+        async function downloadSelectionPng() {
+          // No selection: export everything drawn, without showing a selection.
+          const hasSel = !!activeSelectionRect();
+          const rect = hasSel ? activeSelectionRect() : contentBounds();
+          if (!rect) {
+            setExportMessage("Nothing to export");
+            return;
+          }
+          setExportMessage("Rendering…");
+          const blob = await buildSelectionPngBlob(hasSel ? undefined : rect);
+          if (!blob) {
+            setExportMessage("Nothing to export");
+            return;
+          }
+          try {
+            await saveBlob(blob, "draw-" + rect.w + "x" + rect.h + ".png");
+            setExportMessage("Downloaded " + rect.w + "×" + rect.h);
+          } catch (err) {
+            setExportMessage(
+              err && err.code === "declined" ? "Download cancelled" : "Download failed"
+            );
+          }
         }
 
         async function publishSelectionPng() {
@@ -2050,12 +2457,16 @@
           const canPublish = hasSel || !!state.lastPublishSelection;
           cutBtn.disabled = !hasSel;
           copyBtn.disabled = !hasSel;
+          deleteBtn.disabled = !hasSel;
+          undoBtn.disabled = !undoStack.length;
+          redoBtn.disabled = !redoStack.length;
           // Always allow paste — may pull an image from the system clipboard.
           pasteBtn.disabled = false;
           pasteBtn.title = state.clipboard
             ? "Paste (⌘/Ctrl+V)"
             : "Paste image or selection (⌘/Ctrl+V)";
-          downloadBtn.disabled = !hasSel;
+          downloadBtn.disabled = !hasSel && pixels.size === 0;
+          downloadBtn.title = hasSel ? "Download selection PNG" : "Download drawing PNG";
           publishBtn.disabled = !canPublish;
           const title = publishBtn.title || "";
           if (
@@ -2404,7 +2815,7 @@
             const size = Math.max(1, state.brushSize | 0);
             const start = -Math.floor((size - 1) / 2);
             ctx.globalAlpha = 0.85;
-            ctx.fillStyle = state.color;
+            ctx.fillStyle = state.lineErase ? state.bgColor : state.color;
             forEachLineCell(a.x, a.y, b.x, b.y, (x, y) => {
               for (let dy = 0; dy < size; dy++) {
                 for (let dx = 0; dx < size; dx++) {
@@ -2432,7 +2843,11 @@
             drawMarchingAnts(state.selection, s);
           }
 
-          if (state.tool !== "select" || !state.selection) {
+          if (
+            state.hoverVisible &&
+            !quickMenu.open &&
+            (state.tool !== "select" || !state.selection)
+          ) {
             const size =
               state.tool === "brush" ||
               state.tool === "eraser" ||
@@ -2519,30 +2934,144 @@
           input.addEventListener("blur", () => apply(true));
         }
 
-        canvas.addEventListener("pointerdown", (e) => {
-          canvas.setPointerCapture(e.pointerId);
-          state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+        function clearHoldTimer() {
+          if (state.holdTimer) clearTimeout(state.holdTimer);
+          state.holdTimer = null;
+          state.holdPos = null;
+        }
 
-          if (state.pointers.size === 2) {
+        function restartHoldTimer(x, y) {
+          clearHoldTimer();
+          state.holdPos = { x, y };
+          state.holdTimer = setTimeout(snapStrokeToLine, QS_HOLD_MS);
+        }
+
+        // Replace the stroke so far with a straight line from its start to the
+        // current cell, then keep adjusting the line end until lift (like the
+        // line tool). Only for strokes that actually went somewhere.
+        function snapStrokeToLine() {
+          state.holdTimer = null;
+          if (!state.drawing || !state.strokeStart || !state.strokeBase) return;
+          const end = state.hover;
+          if (end.x === state.strokeStart.x && end.y === state.strokeStart.y) return;
+          pixels.clear();
+          for (const [k, c] of state.strokeBase) pixels.set(k, c);
+          state.drawing = false;
+          state.lastWorld = null;
+          state.lining = true;
+          state.lineErase = state.tool === "eraser";
+          state.lineStart = state.strokeStart;
+          state.lineEnd = end;
+          state.needsDraw = true;
+        }
+
+        // Pencil (and mouse) draws; fingers navigate. One finger pans, two
+        // pinch-zoom, a quick two-finger tap undoes, three-finger tap redoes.
+        function startPinch() {
+          const pts = [...state.pointers.values()];
+          const dx = pts[1].x - pts[0].x;
+          const dy = pts[1].y - pts[0].y;
+          state.pinch = {
+            dist: Math.hypot(dx, dy) || 1,
+            scale: state.scale,
+            midX: (pts[0].x + pts[1].x) / 2,
+            midY: (pts[0].y + pts[1].y) / 2,
+          };
+        }
+
+        function cancelTouchGesture() {
+          state.pointers.clear();
+          state.pinch = null;
+          state.touchGesture = null;
+        }
+
+        function touchDown(e) {
+          if (state.penId != null) return; // palm resting while drawing
+          capturePointer(canvas, e.pointerId);
+          state.pointers.set(e.pointerId, {
+            x: e.clientX,
+            y: e.clientY,
+            sx: e.clientX,
+            sy: e.clientY,
+          });
+          if (!state.touchGesture) {
+            state.touchGesture = { start: performance.now(), maxCount: 0, moved: false };
+          }
+          state.touchGesture.maxCount = Math.max(
+            state.touchGesture.maxCount,
+            state.pointers.size
+          );
+          state.pinch = null;
+          if (state.pointers.size === 2) startPinch();
+        }
+
+        function touchMove(e) {
+          const pt = state.pointers.get(e.pointerId);
+          if (!pt) return;
+          const dx = e.clientX - pt.x;
+          const dy = e.clientY - pt.y;
+          pt.x = e.clientX;
+          pt.y = e.clientY;
+          const g = state.touchGesture;
+          if (g && Math.hypot(pt.x - pt.sx, pt.y - pt.sy) > TAP_MAX_MOVE) g.moved = true;
+
+          if (state.pointers.size === 1) {
+            state.camX += dx;
+            state.camY += dy;
+            state.needsDraw = true;
+          } else if (state.pointers.size === 2 && state.pinch) {
             const pts = [...state.pointers.values()];
-            const dx = pts[1].x - pts[0].x;
-            const dy = pts[1].y - pts[0].y;
-            state.pinch = {
-              dist: Math.hypot(dx, dy) || 1,
-              scale: state.scale,
-              midX: (pts[0].x + pts[1].x) / 2,
-              midY: (pts[0].y + pts[1].y) / 2,
-            };
-            state.drawing = false;
-            state.lining = false;
-            state.panning = false;
-            state.selecting = false;
+            const dist = Math.hypot(pts[1].x - pts[0].x, pts[1].y - pts[0].y) || 1;
+            const midX = (pts[0].x + pts[1].x) / 2;
+            const midY = (pts[0].y + pts[1].y) / 2;
+            const r = canvas.getBoundingClientRect();
+            zoomAt(midX - r.left, midY - r.top, state.pinch.scale * (dist / state.pinch.dist));
+            state.camX += midX - state.pinch.midX;
+            state.camY += midY - state.pinch.midY;
+            state.pinch.midX = midX;
+            state.pinch.midY = midY;
+            state.needsDraw = true;
+          }
+        }
+
+        function touchUp(e) {
+          if (!state.pointers.delete(e.pointerId)) return;
+          state.pinch = null;
+          if (state.pointers.size === 2) startPinch();
+          if (state.pointers.size > 0) return;
+          const g = state.touchGesture;
+          state.touchGesture = null;
+          if (g && !g.moved && performance.now() - g.start < TAP_MAX_MS) {
+            if (g.maxCount === 2) undo();
+            else if (g.maxCount === 3) redo();
+          }
+          saveSettings();
+        }
+
+        canvas.addEventListener("pointerdown", (e) => {
+          // While the quick menu is open the canvas only aims, never draws.
+          if (quickMenu.open) {
+            if (e.pointerType !== "touch") updateQuickMenuHot(e.clientX, e.clientY);
             return;
           }
+          if (e.pointerType === "touch") {
+            touchDown(e);
+            return;
+          }
+          // Right mouse button = squeeze.
+          if (e.pointerType === "mouse" && e.button === 2) {
+            openQuickMenu(e.pointerId, { x: e.clientX, y: e.clientY });
+            return;
+          }
+          // Pen or mouse cancels any finger gesture (e.g. a resting palm).
+          cancelTouchGesture();
+          capturePointer(canvas, e.pointerId);
+          state.penId = e.pointerId;
 
           const p = clientPos(e);
           const world = screenToWorld(p.x, p.y);
           state.hover = world;
+          state.hoverVisible = true;
 
           if (wantsPan(e)) {
             state.panning = true;
@@ -2582,6 +3111,9 @@
             }
             state.drawing = true;
             state.lastWorld = null;
+            state.strokeStart = world;
+            state.strokeBase = undoStack[undoStack.length - 1].pixels;
+            restartHoldTimer(e.clientX, e.clientY);
             paintAt(p.x, p.y);
             return;
           }
@@ -2590,6 +3122,7 @@
             pushUndo();
             if (state.float) commitFloat();
             state.lining = true;
+            state.lineErase = false;
             state.lineStart = world;
             state.lineEnd = world;
             state.needsDraw = true;
@@ -2618,7 +3151,7 @@
             state.selection = selectionRectFromDrag(
               world,
               world,
-              e.shiftKey || state.shiftDown
+              e.shiftKey || state.shiftDown || state.snap
             );
             syncActionButtons();
             state.needsDraw = true;
@@ -2626,32 +3159,19 @@
         });
 
         canvas.addEventListener("pointermove", (e) => {
-          if (state.pointers.has(e.pointerId)) {
-            state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
-          }
-
-          if (state.pointers.size === 2 && state.pinch) {
-            const pts = [...state.pointers.values()];
-            const dx = pts[1].x - pts[0].x;
-            const dy = pts[1].y - pts[0].y;
-            const dist = Math.hypot(dx, dy) || 1;
-            const midX = (pts[0].x + pts[1].x) / 2;
-            const midY = (pts[0].y + pts[1].y) / 2;
-            const r = canvas.getBoundingClientRect();
-            const localMid = { x: midX - r.left, y: midY - r.top };
-            zoomAt(localMid.x, localMid.y, state.pinch.scale * (dist / state.pinch.dist));
-            state.camX += midX - state.pinch.midX;
-            state.camY += midY - state.pinch.midY;
-            state.pinch.midX = midX;
-            state.pinch.midY = midY;
-            state.needsDraw = true;
+          if (e.pointerType === "touch") {
+            touchMove(e);
             return;
           }
+          if (state.penId != null && e.pointerId !== state.penId) return;
 
+          // Also fires while a Pencil hovers, so the brush outline follows it.
+          state.lastCanvasClient = { x: e.clientX, y: e.clientY };
           const p = clientPos(e);
           const cell = screenToWorld(p.x, p.y);
-          if (cell.x !== state.hover.x || cell.y !== state.hover.y) {
+          if (!state.hoverVisible || cell.x !== state.hover.x || cell.y !== state.hover.y) {
             state.hover = cell;
+            state.hoverVisible = true;
             state.needsDraw = true;
           }
 
@@ -2679,7 +3199,7 @@
             state.selection = selectionRectFromDrag(
               state.selectAnchor,
               cell,
-              e.shiftKey || state.shiftDown
+              e.shiftKey || state.shiftDown || state.snap
             );
             syncActionButtons();
             state.needsDraw = true;
@@ -2692,7 +3212,15 @@
             return;
           }
 
-          if (state.drawing) paintAt(p.x, p.y);
+          if (state.drawing) {
+            if (
+              !state.holdPos ||
+              Math.hypot(e.clientX - state.holdPos.x, e.clientY - state.holdPos.y) > QS_STILL_PX
+            ) {
+              restartHoldTimer(e.clientX, e.clientY);
+            }
+            paintAt(p.x, p.y);
+          }
 
           if (state.tool === "select" && !state.panning && !state.moving) {
             const live = state.float
@@ -2708,9 +3236,14 @@
         });
 
         function endPointer(e) {
-          state.pointers.delete(e.pointerId);
-          if (state.pointers.size < 2) state.pinch = null;
-          if (state.pointers.size === 0) {
+          if (e.pointerType === "touch") {
+            touchUp(e);
+            return;
+          }
+          if (e.pointerId !== state.penId) return;
+          state.penId = null;
+          clearHoldTimer();
+          {
             if (state.lining && state.lineStart && state.lineEnd) {
               const end = constrainLineEnd(state.lineStart, state.lineEnd);
               paintBrushLine(
@@ -2718,7 +3251,7 @@
                 state.lineStart.y,
                 end.x,
                 end.y,
-                state.color
+                state.lineErase ? null : state.color
               );
               state.lastPainted = { x: end.x, y: end.y };
             }
@@ -2743,6 +3276,460 @@
 
         canvas.addEventListener("pointerup", endPointer);
         canvas.addEventListener("pointercancel", endPointer);
+        canvas.addEventListener("pointerleave", (e) => {
+          if (e.pointerType === "touch" || state.penId != null) return;
+          state.hoverVisible = false;
+          state.needsDraw = true;
+        });
+
+        function syncSnapUi() {
+          snapBtn.classList.toggle("active", state.snap);
+          snapBtn.setAttribute("aria-pressed", state.snap ? "true" : "false");
+        }
+
+        // Quick menu: a ring of tools plus a "colours" item whose swatches open
+        // as an outer ring when it's hovered. Opened by holding the squeeze
+        // button (stand-in for Pencil Pro squeeze) or the right mouse button.
+        // Hold mode: whatever is hovered when the button is released is picked.
+        // If the button is released quickly, with nothing hovered, on the
+        // colours item, or iOS cancels the held touch, the menu stays open
+        // (sticky) and the next tap picks; tapping the centre/outside cancels.
+        const QM_TOOLS = ["brush", "line", "flex", "eyedropper", "eraser"];
+        const QM_R = 72; // mid radius of the main ring
+        const QM_BAND = 52; // main ring thickness
+        const QM_SUB_GAP = 6; // gap between main ring and swatch ring
+        const QM_SUB_BAND = 40; // swatch ring thickness
+        const QM_SUB_ARC = 40; // arc length per swatch at the swatch ring's mid radius
+        const QM_ARC_GAP = 2; // px gap between neighbouring arcs
+        const QM_ICON = 22;
+        const QM_HOT_PUSH = 8; // an arc slides outward up to this much as you near it
+        const QM_PROX_SCALE = 0.1; // ...and grows up to this fraction
+        const QM_SUB_MIN_SCALE = 0.8; // swatch ring scale when barely expanded
+        const QM_CENTER_R = 30; // centre = cancel
+        const QM_OUTER_SLOP = 40; // px past the outermost ring that still counts
+        const QM_QUICK_MS = 300; // shorter hold = sticky
+        const SVG_NS = "http://www.w3.org/2000/svg";
+
+        const quickMenuEl = document.getElementById("quick-menu");
+        const squeezeBtn = document.getElementById("btn-squeeze");
+        const quickMenu = {
+          open: false,
+          pointerId: null, // pointer holding the menu open (hold mode)
+          sticky: false,
+          tapId: null, // pointer picking an item in sticky mode
+          openedAt: 0,
+          cx: 0,
+          cy: 0,
+          outer: 0, // outer edge of the main ring
+          subOuter: 0, // outer edge of the swatch ring
+          items: [], // main ring
+          sub: [], // swatches
+          subEl: null,
+          subOpen: false,
+          colorsItem: null,
+          hot: null,
+          label: null,
+        };
+
+        function toolIconPaths(name) {
+          const btn = document.getElementById("tool-" + name);
+          const svg = btn && btn.querySelector("svg");
+          return svg ? svg.innerHTML : "";
+        }
+
+        // Annular sector between radii r0 < r1 and angles a0 < a1, centred on 0,0.
+        function arcPath(r0, r1, a0, a1) {
+          const large = a1 - a0 > Math.PI ? 1 : 0;
+          const pt = (rad, a) => (rad * Math.cos(a)).toFixed(2) + " " + (rad * Math.sin(a)).toFixed(2);
+          return (
+            "M" + pt(r1, a0) +
+            " A" + r1 + " " + r1 + " 0 " + large + " 1 " + pt(r1, a1) +
+            " L" + pt(r0, a1) +
+            " A" + r0 + " " + r0 + " 0 " + large + " 0 " + pt(r0, a0) +
+            "Z"
+          );
+        }
+
+        function placeQuickMenuEl(el, size) {
+          el.style.width = size + "px";
+          el.style.height = size + "px";
+          el.style.left = quickMenu.cx - size / 2 + "px";
+          el.style.top = quickMenu.cy - size / 2 + "px";
+          quickMenuEl.appendChild(el);
+        }
+
+        // Builds one arc item into `parent` and returns its hit-test record.
+        function addArcItem(parent, it, r0, r1, angle, halfStep) {
+          const mid = (r0 + r1) / 2;
+          const pad = QM_ARC_GAP / 2 / mid;
+          const g = document.createElementNS(SVG_NS, "g");
+          g.setAttribute(
+            "class",
+            "qm-item qm-" + it.kind +
+              (it.flex ? " qm-flex" : "") +
+              (it.current ? " current" : "") +
+              (it.apply || it.submenu ? "" : " empty")
+          );
+          const arc = document.createElementNS(SVG_NS, "path");
+          arc.setAttribute("class", "qm-arc");
+          arc.setAttribute("d", arcPath(r0, r1, angle - halfStep + pad, angle + halfStep - pad));
+          if (it.color) arc.style.fill = it.color;
+          g.appendChild(arc);
+          if (it.tool) {
+            const icon = document.createElementNS(SVG_NS, "g");
+            icon.setAttribute("class", "qm-icon");
+            const x = mid * Math.cos(angle) - QM_ICON / 2;
+            const y = mid * Math.sin(angle) - QM_ICON / 2;
+            icon.setAttribute("transform", "translate(" + x + " " + y + ") scale(" + QM_ICON / 24 + ")");
+            icon.innerHTML = toolIconPaths(it.tool);
+            g.appendChild(icon);
+          }
+          parent.appendChild(g);
+          return {
+            el: g,
+            angle,
+            halfStep,
+            label: it.label,
+            apply: it.apply || null,
+            submenu: !!it.submenu,
+          };
+        }
+
+        function openQuickMenu(pointerId, anchor) {
+          closeColorPicker();
+          const main = [];
+          for (const slot of QM_TOOLS) {
+            const tool = slot === "flex" ? state.prevTool : slot;
+            main.push({
+              kind: "tool",
+              flex: slot === "flex",
+              tool,
+              label: tool ? (slot === "flex" ? "last: " : "") + tool : "no previous tool",
+              current: tool === state.tool,
+              apply: tool ? () => setTool(tool) : null,
+            });
+          }
+          main.push({ kind: "colors", color: state.color, label: "colors", submenu: true });
+
+          const inner = QM_R - QM_BAND / 2;
+          const outer = QM_R + QM_BAND / 2;
+          const subInner = outer + QM_SUB_GAP;
+          const subOuter = subInner + QM_SUB_BAND;
+          const reach = subOuter + QM_HOT_PUSH + 4;
+          const at = anchor ||
+            state.lastCanvasClient || { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+          const fit = (v, max) => {
+            const m = Math.min(reach, max / 2);
+            return Math.max(m, Math.min(max - m, v));
+          };
+          quickMenu.cx = fit(at.x, window.innerWidth);
+          quickMenu.cy = fit(at.y, window.innerHeight);
+          quickMenu.inner = inner;
+          quickMenu.outer = outer;
+          quickMenu.subInner = subInner;
+          quickMenu.subOuter = subOuter;
+          quickMenu.items = [];
+          quickMenu.sub = [];
+          quickMenu.hot = null;
+          quickMenuEl.innerHTML = "";
+
+          const size = 2 * reach;
+          const svg = document.createElementNS(SVG_NS, "svg");
+          svg.setAttribute("class", "qm-svg");
+          svg.setAttribute("viewBox", -size / 2 + " " + -size / 2 + " " + size + " " + size);
+          placeQuickMenuEl(svg, size);
+
+          const center = document.createElement("div");
+          center.className = "qm-center";
+          placeQuickMenuEl(center, QM_CENTER_R * 2);
+          quickMenu.label = center;
+
+          const step = (2 * Math.PI) / main.length;
+          main.forEach((it, k) => {
+            const item = addArcItem(svg, it, inner, outer, -Math.PI / 2 + k * step, step / 2);
+            quickMenu.items.push(item);
+            if (item.submenu) quickMenu.colorsItem = item;
+          });
+
+          // Swatch ring: a fan centred on the colours item, or the full circle
+          // when there are too many swatches to fan.
+          const subEl = document.createElementNS(SVG_NS, "g");
+          subEl.setAttribute("class", "qm-sub");
+          svg.insertBefore(subEl, svg.firstChild);
+          const n = state.palette.length;
+          const subMid = (subInner + subOuter) / 2;
+          const subStep = Math.min(QM_SUB_ARC / subMid, (2 * Math.PI) / n);
+          const start = quickMenu.colorsItem.angle - ((n - 1) * subStep) / 2;
+          state.palette.forEach((color, k) => {
+            quickMenu.sub.push(
+              addArcItem(
+                subEl,
+                {
+                  kind: "swatch",
+                  color,
+                  label: color,
+                  current: k === state.paletteIndex,
+                  apply: () => {
+                    selectPaletteIndex(k);
+                    if (state.tool !== "brush" && state.tool !== "line") setTool("brush");
+                  },
+                },
+                subInner,
+                subOuter,
+                start + k * subStep,
+                subStep / 2
+              )
+            );
+          });
+          quickMenu.subEl = subEl;
+          setQuickMenuSub(false);
+          applyQuickMenuProximity(null);
+
+          quickMenu.open = true;
+          quickMenu.pointerId = pointerId;
+          quickMenu.sticky = false;
+          quickMenu.tapId = null;
+          quickMenu.openedAt = performance.now();
+          quickMenu.entered = false;
+          quickMenuEl.hidden = false;
+          squeezeBtn.classList.add("active");
+          setQuickMenuHot(null);
+          state.needsDraw = true;
+        }
+
+        function setQuickMenuSub(open) {
+          quickMenu.subOpen = open;
+          quickMenu.subEl.classList.toggle("open", open);
+          quickMenu.colorsItem.el.classList.toggle("expanded", open);
+        }
+
+        function angleDiff(a, b) {
+          let d = Math.abs(a - b) % (2 * Math.PI);
+          return d > Math.PI ? 2 * Math.PI - d : d;
+        }
+
+        function nearestByAngle(list, angle) {
+          let best = null;
+          let bestDiff = Infinity;
+          for (const it of list) {
+            const diff = angleDiff(angle, it.angle);
+            if (diff < bestDiff) {
+              bestDiff = diff;
+              best = it;
+            }
+          }
+          return { item: best, diff: bestDiff };
+        }
+
+        // Distance picks the ring, angle picks the item, so a rough move
+        // toward an item is enough. Returns undefined for the centre.
+        // The item in a direction: a swatch if the swatch ring is open and the
+        // angle falls inside its fan, otherwise the main item. `inFan` tells
+        // the caller which ring answered.
+        function quickMenuItemInDirection(angle) {
+          if (quickMenu.subOpen) {
+            const hit = nearestByAngle(quickMenu.sub, angle);
+            if (hit.item && hit.diff <= hit.item.halfStep) return { item: hit.item, inFan: true };
+          }
+          const best = nearestByAngle(quickMenu.items, angle).item;
+          return { item: best && (best.apply || best.submenu) ? best : null, inFan: false };
+        }
+
+        // Distance picks the ring, angle picks the item, so a rough move toward
+        // an item is enough. Returns undefined for the centre; `beyond` is set
+        // once the pointer has left the menu in that direction.
+        function quickMenuItemAt(x, y) {
+          const dx = x - quickMenu.cx;
+          const dy = y - quickMenu.cy;
+          const d = Math.hypot(dx, dy);
+          if (d < QM_CENTER_R) return { item: undefined, beyond: false };
+          if (!quickMenu.subOpen || d <= quickMenu.outer + QM_SUB_GAP / 2) {
+            const main = nearestByAngle(quickMenu.items, Math.atan2(dy, dx)).item;
+            return {
+              item: main && (main.apply || main.submenu) ? main : null,
+              beyond: d > quickMenu.outer + QM_OUTER_SLOP,
+            };
+          }
+          const hit = quickMenuItemInDirection(Math.atan2(dy, dx));
+          const edge = (hit.inFan ? quickMenu.subOuter : quickMenu.outer) + QM_OUTER_SLOP;
+          return { item: hit.item, beyond: d > edge };
+        }
+
+        function setQuickMenuHot(hot) {
+          const prev = quickMenu.hot;
+          if (prev && prev !== hot) prev.el.classList.remove("hot");
+          if (hot) {
+            hot.el.classList.add("hot");
+            hot.el.parentNode.appendChild(hot.el); // paint above neighbours
+          }
+          quickMenu.hot = hot;
+          if (quickMenu.label) quickMenu.label.textContent = hot ? hot.label : "×";
+        }
+
+        function updateQuickMenuHot(x, y) {
+          const at = quickMenuItemAt(x, y);
+          const hot = at.item || null;
+          // Leaving the menu picks whatever is in that direction and closes it
+          // (leaving through colours just opens the swatch ring). Only once the
+          // pointer has been inside, so one that starts outside (a mouse on
+          // the squeeze button) doesn't pick on its way in.
+          if (!at.beyond) quickMenu.entered = true;
+          if (at.beyond && quickMenu.entered && hot && hot.apply) {
+            setQuickMenuHot(hot);
+            closeQuickMenu(true);
+            return;
+          }
+          // Colours opens the swatch ring once the pointer reaches its arc (before
+          // that the ring only previews, scaled by proximity); another main item
+          // or the centre closes it.
+          const d = Math.hypot(x - quickMenu.cx, y - quickMenu.cy);
+          if (hot && hot.submenu) {
+            if (d >= quickMenu.inner) setQuickMenuSub(true);
+          } else if (at.item === undefined || (hot && quickMenu.items.includes(hot))) {
+            setQuickMenuSub(false);
+          }
+          if (hot !== quickMenu.hot) setQuickMenuHot(hot);
+          applyQuickMenuProximity({ x, y });
+        }
+
+        function smoothstep(t) {
+          if (t <= 0) return 0;
+          if (t >= 1) return 1;
+          return t * t * (3 - 2 * t);
+        }
+
+        // Every arc slides out and grows with how close the pointer is (by
+        // angle and by distance from its ring), and the swatch ring expands as
+        // the pointer nears the colours item, fully once colours is hovered.
+        function applyQuickMenuProximity(pt) {
+          let d = 0;
+          let angle = 0;
+          if (pt) {
+            d = Math.hypot(pt.x - quickMenu.cx, pt.y - quickMenu.cy);
+            angle = Math.atan2(pt.y - quickMenu.cy, pt.x - quickMenu.cx);
+          }
+          // 1 inside [r0, r1], easing to 0 toward `from` and past r1.
+          const radial = (from, r0, r1) => {
+            if (!pt) return 0;
+            if (d < r0) return smoothstep((d - from) / (r0 - from));
+            if (d <= r1) return 1;
+            return smoothstep(1 - (d - r1) / QM_OUTER_SLOP);
+          };
+          const near = (it, spread) => smoothstep(1 - angleDiff(angle, it.angle) / (it.halfStep * spread));
+          const style = (it, prox) => {
+            const push = QM_HOT_PUSH * prox;
+            it.el.style.transform =
+              "translate(" + push * Math.cos(it.angle) + "px, " + push * Math.sin(it.angle) + "px)" +
+              " scale(" + (1 + QM_PROX_SCALE * prox) + ")";
+          };
+
+          const mainR = radial(QM_CENTER_R, quickMenu.inner, quickMenu.outer);
+          for (const it of quickMenu.items) style(it, pt && (it.apply || it.submenu) ? near(it, 3) * mainR : 0);
+
+          const colors = quickMenu.colorsItem;
+          const level = quickMenu.subOpen
+            ? 1
+            : pt
+              ? near(colors, 3) * radial(QM_CENTER_R, quickMenu.inner, quickMenu.subOuter)
+              : 0;
+          quickMenu.subEl.style.opacity = level;
+          quickMenu.subEl.style.transform = "scale(" + (QM_SUB_MIN_SCALE + (1 - QM_SUB_MIN_SCALE) * level) + ")";
+          quickMenu.subEl.style.visibility = level > 0.01 ? "visible" : "hidden";
+
+          const subR = radial(quickMenu.outer, quickMenu.subInner, quickMenu.subOuter) * level;
+          for (const it of quickMenu.sub) style(it, pt ? near(it, 2.5) * subR : 0);
+        }
+
+        function closeQuickMenu(apply) {
+          if (!quickMenu.open) return;
+          const hot = quickMenu.hot;
+          quickMenu.open = false;
+          quickMenu.pointerId = null;
+          quickMenu.sticky = false;
+          quickMenu.tapId = null;
+          quickMenu.hot = null;
+          quickMenu.items = [];
+          quickMenu.sub = [];
+          quickMenu.subEl = null;
+          quickMenu.colorsItem = null;
+          quickMenu.label = null;
+          quickMenuEl.hidden = true;
+          quickMenuEl.innerHTML = "";
+          squeezeBtn.classList.remove("active");
+          state.needsDraw = true;
+          if (apply && hot && hot.apply) hot.apply();
+        }
+
+        function makeQuickMenuSticky() {
+          quickMenu.sticky = true;
+          quickMenu.pointerId = null;
+          quickMenu.tapId = null;
+        }
+
+        squeezeBtn.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          if (quickMenu.open) {
+            closeQuickMenu(false); // tapping squeeze again closes a sticky menu
+            return;
+          }
+          capturePointer(squeezeBtn, e.pointerId);
+          openQuickMenu(e.pointerId);
+        });
+        squeezeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
+        quickMenuEl.addEventListener("contextmenu", (e) => e.preventDefault());
+
+        // Sticky mode: any pointer (Pencil, finger, mouse) taps to pick.
+        window.addEventListener("pointerdown", (e) => {
+          if (!quickMenu.open || !quickMenu.sticky || quickMenu.tapId != null) return;
+          if (e.target === squeezeBtn) return;
+          quickMenu.tapId = e.pointerId;
+          updateQuickMenuHot(e.clientX, e.clientY);
+        });
+
+        // Aim: Pencil (hovering or touching) and mouse always; a finger only
+        // when it's the one tapping in sticky mode (otherwise it's the one
+        // holding the squeeze button).
+        window.addEventListener("pointermove", (e) => {
+          if (!quickMenu.open) return;
+          if (e.pointerType === "touch" && e.pointerId !== quickMenu.tapId) return;
+          updateQuickMenuHot(e.clientX, e.clientY);
+        });
+
+        function endQuickMenuPointer(e) {
+          if (!quickMenu.open) return;
+          const hot = quickMenu.hot;
+          if (quickMenu.sticky) {
+            if (e.pointerId !== quickMenu.tapId) return;
+            if (e.type === "pointerup" && hot && hot.submenu) {
+              quickMenu.tapId = null; // tapped colours: wait for a swatch tap
+              return;
+            }
+            closeQuickMenu(e.type === "pointerup");
+            return;
+          }
+          if (e.pointerId !== quickMenu.pointerId) return;
+          if (e.type === "pointerup" && hot) {
+            if (hot.submenu) makeQuickMenuSticky();
+            else closeQuickMenu(true);
+            return;
+          }
+          const quick = performance.now() - quickMenu.openedAt < QM_QUICK_MS;
+          if (e.type === "pointercancel" || quick) {
+            makeQuickMenuSticky();
+            return;
+          }
+          closeQuickMenu(false); // held, then released over the centre/outside
+        }
+        window.addEventListener("pointerup", endQuickMenuPointer);
+        window.addEventListener("pointercancel", endQuickMenuPointer);
+
+        function setSnap(on) {
+          state.snap = on;
+          syncSnapUi();
+          if (state.lining) state.needsDraw = true;
+          if (state.selecting) refreshSelectingRect(on || state.shiftDown);
+          saveSettings();
+        }
 
         canvas.addEventListener(
           "wheel",
@@ -2832,6 +3819,10 @@
           }
           if (e.key === "Escape") {
             e.preventDefault();
+            if (quickMenu.open) {
+              closeQuickMenu(false);
+              return;
+            }
             if (colorPicker.open) {
               closeColorPicker();
               return;
@@ -2881,7 +3872,7 @@
           if (e.key === "Shift") {
             state.shiftDown = false;
             if (state.lining) state.needsDraw = true;
-            if (state.selecting) refreshSelectingRect(false);
+            if (state.selecting) refreshSelectingRect(state.snap);
           }
           if (e.code === "Space") {
             state.spaceDown = false;
@@ -3002,6 +3993,10 @@
         lineBtn.addEventListener("click", () => setTool("line"));
         selectBtn.addEventListener("click", () => setTool("select"));
         eyedropperBtn.addEventListener("click", () => setTool("eyedropper"));
+        undoBtn.addEventListener("click", () => undo());
+        redoBtn.addEventListener("click", () => redo());
+        snapBtn.addEventListener("click", () => setSnap(!state.snap));
+        deleteBtn.addEventListener("click", () => deleteSelection());
         cutBtn.addEventListener("click", () => cutSelection());
         copyBtn.addEventListener("click", () => copySelection());
         pasteBtn.addEventListener("click", () => pasteFromUser());
@@ -3055,6 +4050,7 @@
         loadSettings();
         syncSettingsUi();
         syncSizeHud();
+        syncSnapUi();
         buildPalette();
         // Apply tool UI without wiping restored selection
         brushBtn.classList.toggle("active", state.tool === "brush");
