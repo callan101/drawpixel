@@ -1,0 +1,8 @@
+{
+  "appId": "com.callan101.drawpixel",
+  "appName": "Draw",
+  "webDir": "www",
+  "ios": {
+    "contentInset": "never"
+  }
+}
