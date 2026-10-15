@@ -1,0 +1,3087 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" media="(prefers-color-scheme: light)" content="#f2f2f2" />
+    <meta name="theme-color" media="(prefers-color-scheme: dark)" content="#141414" />
+    <title>draw</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --bg0: #f2f2f2;
+        --panel: #ffffff;
+        --ink: #1a1a1a;
+        --muted: #6a6a6a;
+        --line: #c8c8c8;
+        --accent: #1a1a1a;
+        --hud: #ffffff;
+      }
+
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg0: #141414;
+          --panel: #1c1c1c;
+          --ink: #ececec;
+          --muted: #8a8a8a;
+          --line: #3a3a3a;
+          --accent: #ececec;
+          --hud: #1c1c1c;
+        }
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html,
+      body {
+        margin: 0;
+        height: 100%;
+        overflow: hidden;
+        background: var(--bg0);
+        color: var(--ink);
+        font-family: "IBM Plex Mono", ui-monospace, monospace;
+        font-size: 12px;
+        touch-action: none;
+        user-select: none;
+        -webkit-user-select: none;
+      }
+
+      #stage {
+        position: fixed;
+        inset: 0;
+        display: block;
+        width: 100%;
+        height: 100%;
+        cursor: crosshair;
+        background: var(--bg0);
+      }
+
+      #stage.panning,
+      #stage.moving {
+        cursor: grabbing;
+      }
+
+      .hud {
+        position: fixed;
+        z-index: 2;
+        display: flex;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--panel);
+      }
+
+      .hud-tools {
+        top: 50%;
+        left: 16px;
+        transform: translateY(-50%);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        padding: 10px;
+        width: 66px;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+      }
+
+      .hud-palette {
+        top: 50%;
+        right: 16px;
+        transform: translateY(-50%);
+        flex-direction: column;
+        align-items: stretch;
+        gap: 6px;
+        padding: 10px;
+        width: 64px;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+      }
+
+      .hud-size {
+        left: 50%;
+        bottom: 16px;
+        transform: translateX(-50%);
+        align-items: center;
+        gap: 10px;
+        padding: 8px 12px;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+      }
+
+      .hud-size.inactive {
+        opacity: 0.45;
+      }
+
+      .hud-size input[type="range"] {
+        width: 140px;
+        margin: 0;
+        accent-color: var(--ink);
+        cursor: pointer;
+      }
+
+      .hud-size #brush-size-val {
+        min-width: 1.5em;
+        color: var(--ink);
+        font-variant-numeric: tabular-nums;
+        text-align: right;
+      }
+
+      .tool-group {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .tool-group.icons {
+        flex-direction: column;
+        flex-wrap: nowrap;
+        width: auto;
+      }
+
+      .panel-label {
+        margin: 4px 0 0;
+        color: var(--muted);
+        font-size: 11px;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      .tool {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 44px;
+        height: 44px;
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--panel);
+        color: var(--ink);
+        font: inherit;
+        cursor: pointer;
+      }
+
+      .tool svg {
+        width: 22px;
+        height: 22px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+      }
+
+      .tool.active {
+        border-color: var(--ink);
+        background: var(--ink);
+        color: var(--panel);
+      }
+
+      .tool:hover:not(:disabled):not(.active) {
+        border-color: var(--muted);
+      }
+
+      .tool:disabled {
+        opacity: 0.35;
+        cursor: default;
+      }
+
+      .hud-settings {
+        top: 50%;
+        left: 90px;
+        transform: translateY(-50%);
+        display: none;
+        flex-direction: column;
+        align-items: stretch;
+        gap: 10px;
+        width: 176px;
+        padding: 10px;
+        max-height: calc(100vh - 32px);
+        overflow: auto;
+      }
+
+      .hud-settings.open {
+        display: flex;
+      }
+
+      .palette-grid {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+
+      .palette-slot {
+        position: relative;
+        display: block;
+        width: 100%;
+        aspect-ratio: 1;
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        cursor: pointer;
+        overflow: hidden;
+        background: #ddd;
+        font: inherit;
+        color: inherit;
+        appearance: none;
+        -webkit-appearance: none;
+      }
+
+      .palette-slot.active {
+        outline: 1px solid var(--ink);
+        outline-offset: 1px;
+      }
+
+      .palette-slot .idx {
+        position: absolute;
+        left: 4px;
+        top: 3px;
+        z-index: 1;
+        font-size: 11px;
+        line-height: 1;
+        color: #fff;
+        mix-blend-mode: difference;
+        pointer-events: none;
+      }
+
+      .palette-slot.palette-add {
+        display: grid;
+        place-items: center;
+        background: transparent;
+        border-style: dashed;
+        color: var(--muted);
+        font-size: 22px;
+        line-height: 1;
+        font-weight: 400;
+      }
+
+      .palette-slot.palette-add:hover {
+        border-color: var(--ink);
+        color: var(--ink);
+      }
+
+      .palette-slot.palette-add .idx {
+        display: none;
+      }
+
+
+      .settings-block {
+        display: flex;
+        flex-direction: column;
+        gap: 5px;
+      }
+
+      .settings-row {
+        display: grid;
+        grid-template-columns: 32px 1fr;
+        align-items: center;
+        gap: 8px;
+      }
+
+      .settings-row.wide {
+        grid-template-columns: 1fr;
+      }
+
+      .settings-row label {
+        color: var(--muted);
+        font-size: 11px;
+      }
+
+      .settings-row input[type="number"],
+      .settings-row input[type="text"] {
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 7px 8px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--bg0);
+        color: var(--ink);
+        font: inherit;
+        font-size: 12px;
+        -moz-appearance: textfield;
+      }
+
+      .settings-row input[type="number"]::-webkit-outer-spin-button,
+      .settings-row input[type="number"]::-webkit-inner-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
+      }
+
+      .color-field {
+        height: 30px;
+      }
+
+      .color-swatch {
+        display: block;
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        cursor: pointer;
+        background: #888;
+      }
+
+      .color-swatch:hover {
+        border-color: var(--muted);
+      }
+
+      .color-popover {
+        position: fixed;
+        z-index: 20;
+        display: none;
+        flex-direction: column;
+        gap: 10px;
+        width: 200px;
+        padding: 10px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--panel);
+        color: var(--ink);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+      }
+
+      .color-popover.open {
+        display: flex;
+      }
+
+      .color-popover .sv-wrap {
+        position: relative;
+        width: 100%;
+        aspect-ratio: 1;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        cursor: crosshair;
+        touch-action: none;
+      }
+
+      .color-popover .sv-wrap canvas {
+        display: block;
+        width: 100%;
+        height: 100%;
+      }
+
+      .color-popover .sv-cursor {
+        position: absolute;
+        width: 12px;
+        height: 12px;
+        margin: -6px 0 0 -6px;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+      }
+
+      .color-popover .slider-stack {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+      }
+
+      .color-popover .slider-row {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .color-popover .slider-row label {
+        color: var(--muted);
+        font-size: 10px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .color-popover .slider-wrap {
+        position: relative;
+        height: 14px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        cursor: pointer;
+        touch-action: none;
+      }
+
+      .color-popover .hue-wrap {
+        background: linear-gradient(
+          to right,
+          #ff0000,
+          #ffff00,
+          #00ff00,
+          #00ffff,
+          #0000ff,
+          #ff00ff,
+          #ff0000
+        );
+      }
+
+      .color-popover .slider-cursor {
+        position: absolute;
+        top: 50%;
+        width: 10px;
+        height: 18px;
+        margin: -9px 0 0 -5px;
+        border: 2px solid #fff;
+        border-radius: 2px;
+        box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.55);
+        pointer-events: none;
+        background: transparent;
+      }
+
+      .color-popover .hex-row {
+        display: grid;
+        grid-template-columns: 28px 1fr;
+        gap: 8px;
+        align-items: center;
+      }
+
+      .color-popover .hex-preview {
+        width: 28px;
+        height: 28px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+      }
+
+      .color-popover .hex-input {
+        width: 100%;
+        min-width: 0;
+        margin: 0;
+        padding: 7px 8px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--bg0);
+        color: var(--ink);
+        font: inherit;
+        font-size: 12px;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+      }
+
+      .grid-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        color: var(--muted);
+        font-size: 11px;
+        cursor: pointer;
+      }
+
+      .grid-toggle input {
+        accent-color: var(--ink);
+      }
+
+      .export-link.tool {
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .export-link[hidden],
+      #export-copied[hidden] {
+        display: none;
+      }
+
+      #export-copied:disabled {
+        opacity: 1;
+        cursor: default;
+      }
+
+      #export-copied.active-ok {
+        color: var(--ink);
+      }
+
+    </style>
+  </head>
+  <body>
+    <canvas id="stage" aria-label="Pixel canvas"></canvas>
+
+    <div class="hud hud-tools" role="toolbar" aria-label="Tools">
+      <div class="tool-group icons">
+        <button type="button" class="tool" id="btn-settings" aria-pressed="false" title="Settings" aria-label="Settings">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 1 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 1 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 1 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 1 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+      </div>
+      <div class="tool-group icons">
+        <button type="button" class="tool active" id="tool-brush" aria-pressed="true" title="Brush (B)" aria-label="Brush">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19c2 0 3-.8 3.8-2.2L17 5.5a2.1 2.1 0 0 0-3-3L5.8 14.2C4.5 16 4 17.2 4 19v1h1z"/><path d="M13.5 4.5l6 6"/></svg>
+        </button>
+        <button type="button" class="tool" id="tool-eraser" aria-pressed="false" title="Eraser (E)" aria-label="Eraser">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18.5 15.5L9 6l-4.5 4.5a2 2 0 0 0 0 2.8l6.2 6.2a2 2 0 0 0 2.8 0L18.5 15.5z"/><path d="M7.5 20.5h13"/><path d="M13.5 11.5l3.5 3.5"/></svg>
+        </button>
+        <button type="button" class="tool" id="tool-line" aria-pressed="false" title="Line (L)" aria-label="Line">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 19L19 5"/></svg>
+        </button>
+        <button type="button" class="tool" id="tool-select" aria-pressed="false" title="Select (S)" aria-label="Select">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5h4M15 5h4M5 19h4M15 19h4M5 5v4M5 15v4M19 5v4M19 15v4" stroke-dasharray="2 2"/></svg>
+        </button>
+        <button type="button" class="tool" id="tool-eyedropper" aria-pressed="false" title="Eyedropper (I)" aria-label="Eyedropper">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 3.5l4 4L12 16l-4.5 1.5L9 13 16.5 3.5z"/><path d="M13.5 6.5l4 4"/><path d="M7.5 16.5L5 19"/></svg>
+        </button>
+      </div>
+      <div class="tool-group icons">
+        <button type="button" class="tool" id="btn-cut" disabled title="Cut (⌘/Ctrl+X)" aria-label="Cut">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="7" cy="17" r="2.5"/><circle cx="17" cy="17" r="2.5"/><path d="M9.2 15.5L18 4M14.8 15.5L6 4"/></svg>
+        </button>
+        <button type="button" class="tool" id="btn-copy" disabled title="Copy (⌘/Ctrl+C)" aria-label="Copy">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="8" y="8" width="11" height="11" rx="1.5"/><path d="M5 15V5.5A1.5 1.5 0 0 1 6.5 4H15"/></svg>
+        </button>
+        <button type="button" class="tool" id="btn-paste" title="Paste image or selection (⌘/Ctrl+V)" aria-label="Paste">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5h6"/><path d="M10 4h4a1 1 0 0 1 1 1v1H9V5a1 1 0 0 1 1-1z"/><rect x="6" y="6" width="12" height="14" rx="1.5"/></svg>
+        </button>
+      </div>
+      <div class="tool-group icons">
+        <button type="button" class="tool" id="btn-import" title="Import image (max 10KB)" aria-label="Import">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5"/><path d="M8 9l4-4 4 4"/><rect x="5" y="16" width="14" height="5" rx="1"/></svg>
+        </button>
+        <input id="import-file" type="file" accept="image/*" hidden />
+        <button type="button" class="tool" id="btn-download" disabled title="Download selection PNG" aria-label="Download PNG">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M4 15l4-4 3 3 3-4 6 5"/></svg>
+        </button>
+        <button type="button" class="tool" id="btn-publish" disabled title="Publish selection PNG" aria-label="Publish link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6.1.4l2-2a4 4 0 0 0-5.7-5.7l-1.1 1.1"/><path d="M14 11a4 4 0 0 0-6.1-.4l-2 2a4 4 0 0 0 5.7 5.7l1.1-1.1"/></svg>
+        </button>
+      </div>
+      <div class="tool-group icons" id="export-feedback" hidden>
+        <a class="tool export-link" id="export-link" href="#" target="_blank" rel="noopener" hidden title="Open public link" aria-label="Open public link">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M14 5h5v5"/><path d="M19 5L10 14"/><path d="M11 6H7.5A2.5 2.5 0 0 0 5 8.5v8A2.5 2.5 0 0 0 7.5 19h8a2.5 2.5 0 0 0 2.5-2.5V13"/></svg>
+        </a>
+        <button type="button" class="tool active-ok" id="export-copied" hidden disabled title="Public link copied" aria-label="Public link copied">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="hud hud-settings" id="settings-panel" aria-label="Settings" hidden>
+        <p class="panel-label">Canvas</p>
+        <div class="settings-block">
+          <div class="settings-row">
+            <label for="bg-color">bg</label>
+            <div class="color-field">
+              <button type="button" class="color-swatch" id="bg-color" data-color="#f2f2f2" style="background:#f2f2f2" aria-label="Background color"></button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label for="accent-color">acc</label>
+            <div class="color-field">
+              <button type="button" class="color-swatch" id="accent-color" data-color="#1a1a1a" style="background:#1a1a1a" aria-label="Accent color"></button>
+            </div>
+          </div>
+        </div>
+
+        <p class="panel-label">Pixel grid</p>
+        <div class="settings-block">
+          <label class="grid-toggle">
+            <input type="checkbox" id="pixel-grid-enabled" checked />
+            show
+          </label>
+          <div class="settings-row">
+            <label for="pixel-grid-color">col</label>
+            <div class="color-field">
+              <button type="button" class="color-swatch" id="pixel-grid-color" data-color="#d0d0d0" style="background:#d0d0d0" aria-label="Pixel grid color"></button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label for="pixel-grid-thick">w</label>
+            <input id="pixel-grid-thick" type="number" min="0.5" max="8" step="0.5" value="1" />
+          </div>
+        </div>
+
+        <p class="panel-label">Major grid</p>
+        <div class="settings-block">
+          <label class="grid-toggle">
+            <input type="checkbox" id="grid-enabled" checked />
+            show
+          </label>
+          <div class="settings-row">
+            <label for="grid-x">x</label>
+            <input id="grid-x" type="number" min="1" max="512" step="1" value="8" />
+          </div>
+          <div class="settings-row">
+            <label for="grid-y">y</label>
+            <input id="grid-y" type="number" min="1" max="512" step="1" value="8" />
+          </div>
+          <div class="settings-row">
+            <label for="grid-color">col</label>
+            <div class="color-field">
+              <button type="button" class="color-swatch" id="grid-color" data-color="#b0b0b0" style="background:#b0b0b0" aria-label="Major grid color"></button>
+            </div>
+          </div>
+          <div class="settings-row">
+            <label for="grid-thick">w</label>
+            <input id="grid-thick" type="number" min="0.5" max="8" step="0.5" value="1" />
+          </div>
+        </div>
+      </div>
+
+    <div class="hud hud-palette" aria-label="Color palette">
+      <div class="palette-grid" id="palette"></div>
+    </div>
+
+    <div class="hud hud-size" id="size-hud" aria-label="Brush size">
+      <span>size</span>
+      <input id="brush-size" type="range" min="1" max="32" step="1" value="1" />
+      <span id="brush-size-val">1</span>
+    </div>
+
+
+    <div class="color-popover" id="color-popover" role="dialog" aria-label="Color picker" hidden>
+      <div class="sv-wrap" id="cp-sv">
+        <canvas id="cp-sv-canvas" width="180" height="180"></canvas>
+        <div class="sv-cursor" id="cp-sv-cursor"></div>
+      </div>
+      <div class="slider-stack">
+        <div class="slider-row">
+          <label for="cp-hue">hue</label>
+          <div class="slider-wrap hue-wrap" id="cp-hue">
+            <div class="slider-cursor" id="cp-hue-cursor"></div>
+          </div>
+        </div>
+        <div class="slider-row">
+          <label for="cp-sat">sat</label>
+          <div class="slider-wrap" id="cp-sat">
+            <div class="slider-cursor" id="cp-sat-cursor"></div>
+          </div>
+        </div>
+        <div class="slider-row">
+          <label for="cp-bri">bri</label>
+          <div class="slider-wrap" id="cp-bri">
+            <div class="slider-cursor" id="cp-bri-cursor"></div>
+          </div>
+        </div>
+      </div>
+      <div class="hex-row">
+        <div class="hex-preview" id="cp-preview"></div>
+        <input class="hex-input" id="cp-hex" type="text" maxlength="7" spellcheck="false" aria-label="Hex color" />
+      </div>
+    </div>
+
+    <script>
+      (() => {
+        const STORAGE_KEY = "draw.settings.v1";
+        const DEFAULT_PALETTE = [
+          "#f4f0e6",
+          "#d6ff3c",
+          "#5ac8ff",
+          "#ff6b4a",
+          "#1a1e27",
+        ];
+        const MAX_PALETTE_SIZE = 32;
+
+        const canvas = document.getElementById("stage");
+        const ctx = canvas.getContext("2d", { alpha: false });
+        const paletteEl = document.getElementById("palette");
+        const brushBtn = document.getElementById("tool-brush");
+        const eraserBtn = document.getElementById("tool-eraser");
+        const lineBtn = document.getElementById("tool-line");
+        const selectBtn = document.getElementById("tool-select");
+        const eyedropperBtn = document.getElementById("tool-eyedropper");
+        const sizeHud = document.getElementById("size-hud");
+        const brushSizeInput = document.getElementById("brush-size");
+        const brushSizeVal = document.getElementById("brush-size-val");
+        const cutBtn = document.getElementById("btn-cut");
+        const copyBtn = document.getElementById("btn-copy");
+        const pasteBtn = document.getElementById("btn-paste");
+        const importBtn = document.getElementById("btn-import");
+        const importFile = document.getElementById("import-file");
+        const downloadBtn = document.getElementById("btn-download");
+        const publishBtn = document.getElementById("btn-publish");
+        const exportLink = document.getElementById("export-link");
+        const exportCopied = document.getElementById("export-copied");
+        const exportFeedback = document.getElementById("export-feedback");
+        const IMPORT_MAX_BYTES = 10 * 1024;
+        const IMPORT_MAX_DIM = 512;
+        const PASTE_MAX_DIM = 1000;
+        const PASTE_MAX_BYTES = 8 * 1024 * 1024;
+        const bgColorInput = document.getElementById("bg-color");
+        const accentColorInput = document.getElementById("accent-color");
+        const pixelGridEnabledInput = document.getElementById("pixel-grid-enabled");
+        const pixelGridColorInput = document.getElementById("pixel-grid-color");
+        const pixelGridThickInput = document.getElementById("pixel-grid-thick");
+        const gridEnabledInput = document.getElementById("grid-enabled");
+        const gridXInput = document.getElementById("grid-x");
+        const gridYInput = document.getElementById("grid-y");
+        const gridColorInput = document.getElementById("grid-color");
+        const gridThickInput = document.getElementById("grid-thick");
+
+        const pixels = new Map();
+        const UNDO_LIMIT = 50;
+        const undoStack = [];
+        const redoStack = [];
+        const MIN_SCALE = 0.25;
+        const MAX_SCALE = 96;
+
+        const state = {
+          scale: 32,
+          camX: 0,
+          camY: 0,
+          palette: DEFAULT_PALETTE.slice(),
+          paletteIndex: 0,
+          color: DEFAULT_PALETTE[0],
+          tool: "brush",
+          brushSize: 1,
+          drawing: false,
+          lining: false,
+          lineStart: null,
+          lineEnd: null,
+          shiftDown: false,
+          panning: false,
+          selecting: false,
+          moving: false,
+          spaceDown: false,
+          lastWorld: null,
+          lastPainted: null,
+          selectAnchor: null,
+          selection: null,
+          lastPublishSelection: null,
+          float: null,
+          moveGrab: null,
+          clipboard: null,
+          hover: { x: 0, y: 0 },
+          dpr: 1,
+          needsDraw: true,
+          pointers: new Map(),
+          pinch: null,
+          dashOffset: 0,
+          bgColor: "#f2f2f2",
+          accentColor: "#1a1a1a",
+          pixelGridEnabled: true,
+          pixelGridColor: "#d0d0d0",
+          pixelGridThick: 1,
+          gridEnabled: true,
+          gridCellX: 8,
+          gridCellY: 8,
+          gridColor: "#b0b0b0",
+          gridThick: 1,
+        };
+
+        function key(x, y) {
+          return x + "," + y;
+        }
+
+        function parseKey(k) {
+          const comma = k.indexOf(",");
+          return { x: +k.slice(0, comma), y: +k.slice(comma + 1) };
+        }
+
+        
+        function prefersDark() {
+          return window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+        }
+
+        function applySchemeCanvasDefaults() {
+          if (prefersDark()) {
+            state.bgColor = "#141414";
+            state.accentColor = "#ececec";
+            state.pixelGridColor = "#2a2a2a";
+            state.gridColor = "#3a3a3a";
+          } else {
+            state.bgColor = "#f2f2f2";
+            state.accentColor = "#1a1a1a";
+            state.pixelGridColor = "#d0d0d0";
+            state.gridColor = "#b0b0b0";
+          }
+        }
+
+        function normalizeHex(c) {
+          const s = String(c || "").trim().toLowerCase();
+          if (/^#[0-9a-f]{6}$/.test(s)) return s;
+          if (/^#[0-9a-f]{3}$/.test(s)) {
+            return "#" + s[1] + s[1] + s[2] + s[2] + s[3] + s[3];
+          }
+          return s;
+        }
+
+        function hexToRgb(hex) {
+          const h = normalizeHex(hex);
+          if (!/^#[0-9a-f]{6}$/.test(h)) return { r: 0, g: 0, b: 0 };
+          return {
+            r: parseInt(h.slice(1, 3), 16),
+            g: parseInt(h.slice(3, 5), 16),
+            b: parseInt(h.slice(5, 7), 16),
+          };
+        }
+
+        function rgbToHex(r, g, b) {
+          const to = (n) =>
+            Math.max(0, Math.min(255, Math.round(n)))
+              .toString(16)
+              .padStart(2, "0");
+          return "#" + to(r) + to(g) + to(b);
+        }
+
+        function rgbToHsv(r, g, b) {
+          r /= 255;
+          g /= 255;
+          b /= 255;
+          const max = Math.max(r, g, b);
+          const min = Math.min(r, g, b);
+          const d = max - min;
+          let h = 0;
+          if (d) {
+            if (max === r) h = ((g - b) / d) % 6;
+            else if (max === g) h = (b - r) / d + 2;
+            else h = (r - g) / d + 4;
+            h *= 60;
+            if (h < 0) h += 360;
+          }
+          return { h, s: max === 0 ? 0 : d / max, v: max };
+        }
+
+        function hsvToRgb(h, s, v) {
+          const c = v * s;
+          const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+          const m = v - c;
+          let r = 0, g = 0, b = 0;
+          if (h < 60) [r, g, b] = [c, x, 0];
+          else if (h < 120) [r, g, b] = [x, c, 0];
+          else if (h < 180) [r, g, b] = [0, c, x];
+          else if (h < 240) [r, g, b] = [0, x, c];
+          else if (h < 300) [r, g, b] = [x, 0, c];
+          else [r, g, b] = [c, 0, x];
+          return { r: (r + m) * 255, g: (g + m) * 255, b: (b + m) * 255 };
+        }
+
+        function hsvToHex(h, s, v) {
+          const { r, g, b } = hsvToRgb(h, s, v);
+          return rgbToHex(r, g, b);
+        }
+
+        function setSwatchEl(el, hex) {
+          if (!el) return;
+          const h = normalizeHex(hex);
+          el.dataset.color = h;
+          el.style.background = h;
+        }
+
+        function getSwatchEl(el) {
+          return normalizeHex(el && (el.dataset.color || ""));
+        }
+
+        function withAlpha(hex, alpha) {
+          const h = normalizeHex(hex);
+          if (!/^#[0-9a-f]{6}$/.test(h)) return hex;
+          const r = parseInt(h.slice(1, 3), 16);
+          const g = parseInt(h.slice(3, 5), 16);
+          const b = parseInt(h.slice(5, 7), 16);
+          return "rgba(" + r + "," + g + "," + b + "," + alpha + ")";
+        }
+
+        function clampInt(n, lo, hi, fallback) {
+          if (n === "" || n == null) return fallback;
+          const v = Math.round(Number(n));
+          if (!Number.isFinite(v)) return fallback;
+          return Math.max(lo, Math.min(hi, v));
+        }
+
+        function clampFloat(n, lo, hi, fallback) {
+          if (n === "" || n == null) return fallback;
+          const v = Number(n);
+          if (!Number.isFinite(v)) return fallback;
+          return Math.max(lo, Math.min(hi, v));
+        }
+
+                let saveTimer = null;
+        let hasSavedCamera = false;
+
+        function serializePixelMap(map) {
+          const out = [];
+          if (!map) return out;
+          for (const [k, c] of map) out.push(k + "|" + c);
+          return out;
+        }
+
+        function deserializePixelMap(entries) {
+          const map = new Map();
+          if (!Array.isArray(entries)) return map;
+          for (const entry of entries) {
+            if (typeof entry === "string") {
+              const sep = entry.indexOf("|");
+              if (sep < 0) continue;
+              map.set(entry.slice(0, sep), entry.slice(sep + 1));
+            } else if (Array.isArray(entry) && entry.length >= 2) {
+              map.set(String(entry[0]), String(entry[1]));
+            }
+          }
+          return map;
+        }
+
+
+        function cloneSelection(sel) {
+          return sel ? { x: sel.x, y: sel.y, w: sel.w, h: sel.h } : null;
+        }
+
+        function cloneFloat(flt) {
+          if (!flt) return null;
+          return {
+            x: flt.x,
+            y: flt.y,
+            w: flt.w,
+            h: flt.h,
+            pixels: new Map(flt.pixels),
+          };
+        }
+
+        function captureHistory() {
+          return {
+            pixels: new Map(pixels),
+            float: cloneFloat(state.float),
+            selection: cloneSelection(state.selection),
+          };
+        }
+
+        function applyHistory(snap) {
+          pixels.clear();
+          for (const [k, c] of snap.pixels) pixels.set(k, c);
+          state.float = snap.float;
+          state.selection = snap.selection;
+          state.drawing = false;
+          state.lining = false;
+          state.lineStart = null;
+          state.lineEnd = null;
+          state.selecting = false;
+          state.moving = false;
+          state.moveGrab = null;
+          state.lastWorld = null;
+          state.selectAnchor = null;
+          canvas.classList.remove("panning");
+          canvas.classList.remove("moving");
+          syncActionButtons();
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function pushUndo() {
+          undoStack.push(captureHistory());
+          if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+          redoStack.length = 0;
+        }
+
+        function undo() {
+          if (!undoStack.length) return;
+          redoStack.push(captureHistory());
+          if (redoStack.length > UNDO_LIMIT) redoStack.shift();
+          applyHistory(undoStack.pop());
+        }
+
+        function redo() {
+          if (!redoStack.length) return;
+          undoStack.push(captureHistory());
+          if (undoStack.length > UNDO_LIMIT) undoStack.shift();
+          applyHistory(redoStack.pop());
+        }
+
+        function saveSettings(immediate) {
+          const write = () => {
+            saveTimer = null;
+            try {
+              localStorage.setItem(
+                STORAGE_KEY,
+                JSON.stringify({
+                  v: 2,
+                  palette: state.palette,
+                  paletteIndex: state.paletteIndex,
+                  bgColor: state.bgColor,
+                  accentColor: state.accentColor,
+                  pixelGridEnabled: state.pixelGridEnabled,
+                  pixelGridColor: state.pixelGridColor,
+                  pixelGridThick: state.pixelGridThick,
+                  gridEnabled: state.gridEnabled,
+                  gridCellX: state.gridCellX,
+                  gridCellY: state.gridCellY,
+                  gridColor: state.gridColor,
+                  gridThick: state.gridThick,
+                  tool: state.tool,
+                  brushSize: state.brushSize,
+                  scale: state.scale,
+                  camX: state.camX,
+                  camY: state.camY,
+                  pixels: serializePixelMap(pixels),
+                  selection: state.selection,
+                  lastPublishSelection: state.lastPublishSelection,
+                  clipboard: state.clipboard
+                    ? {
+                        w: state.clipboard.w,
+                        h: state.clipboard.h,
+                        pixels: serializePixelMap(state.clipboard.pixels),
+                      }
+                    : null,
+                })
+              );
+            } catch (_) {}
+          };
+          if (immediate) {
+            if (saveTimer) clearTimeout(saveTimer);
+            write();
+            return;
+          }
+          if (saveTimer) clearTimeout(saveTimer);
+          saveTimer = setTimeout(write, 300);
+        }
+
+        function loadSettings() {
+          try {
+            const raw = localStorage.getItem(STORAGE_KEY);
+            if (!raw) return;
+            const data = JSON.parse(raw);
+            if (Array.isArray(data.palette) && data.palette.length > 0) {
+              const next = data.palette
+                .slice(0, MAX_PALETTE_SIZE)
+                .map((c) => normalizeHex(c))
+                .filter((c) => /^#[0-9a-f]{6}$/.test(c));
+              if (next.length > 0) state.palette = next;
+            }
+            if (
+              data.paletteIndex >= 0 &&
+              data.paletteIndex < state.palette.length
+            ) {
+              state.paletteIndex = data.paletteIndex | 0;
+            } else {
+              state.paletteIndex = 0;
+            }
+            if (data.bgColor) state.bgColor = normalizeHex(data.bgColor);
+            if (data.accentColor) state.accentColor = normalizeHex(data.accentColor);
+            if (typeof data.pixelGridEnabled === "boolean") {
+              state.pixelGridEnabled = data.pixelGridEnabled;
+            }
+            if (data.pixelGridColor) {
+              state.pixelGridColor = normalizeHex(data.pixelGridColor);
+            }
+            if (data.pixelGridThick != null) {
+              state.pixelGridThick = clampFloat(data.pixelGridThick, 0.5, 8, 1);
+            }
+            if (typeof data.gridEnabled === "boolean") {
+              state.gridEnabled = data.gridEnabled;
+            }
+            if (data.gridCellX != null) {
+              state.gridCellX = clampInt(data.gridCellX, 1, 512, 8);
+            }
+            if (data.gridCellY != null) {
+              state.gridCellY = clampInt(data.gridCellY, 1, 512, 8);
+            }
+            if (data.gridColor) state.gridColor = normalizeHex(data.gridColor);
+            if (data.gridThick != null) {
+              state.gridThick = clampFloat(data.gridThick, 0.5, 8, 1);
+            }
+            if (
+              data.tool === "brush" ||
+              data.tool === "eraser" ||
+              data.tool === "line" ||
+              data.tool === "select" ||
+              data.tool === "eyedropper"
+            ) {
+              state.tool = data.tool;
+            }
+            if (data.brushSize != null) {
+              state.brushSize = clampInt(data.brushSize, 1, 32, 1);
+            }
+            if (Number.isFinite(data.scale)) {
+              state.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, data.scale));
+            }
+            if (Number.isFinite(data.camX) && Number.isFinite(data.camY)) {
+              state.camX = data.camX;
+              state.camY = data.camY;
+              hasSavedCamera = true;
+            }
+            if (data.pixels) {
+              const loaded = deserializePixelMap(data.pixels);
+              pixels.clear();
+              for (const [k, c] of loaded) pixels.set(k, c);
+            }
+            if (
+              data.selection &&
+              Number.isFinite(data.selection.x) &&
+              Number.isFinite(data.selection.y) &&
+              Number.isFinite(data.selection.w) &&
+              Number.isFinite(data.selection.h)
+            ) {
+              state.selection = {
+                x: data.selection.x | 0,
+                y: data.selection.y | 0,
+                w: Math.max(1, data.selection.w | 0),
+                h: Math.max(1, data.selection.h | 0),
+              };
+            }
+            if (
+              data.lastPublishSelection &&
+              Number.isFinite(data.lastPublishSelection.x) &&
+              Number.isFinite(data.lastPublishSelection.y) &&
+              Number.isFinite(data.lastPublishSelection.w) &&
+              Number.isFinite(data.lastPublishSelection.h)
+            ) {
+              state.lastPublishSelection = {
+                x: data.lastPublishSelection.x | 0,
+                y: data.lastPublishSelection.y | 0,
+                w: Math.max(1, data.lastPublishSelection.w | 0),
+                h: Math.max(1, data.lastPublishSelection.h | 0),
+              };
+            }
+            if (data.clipboard && data.clipboard.pixels) {
+              state.clipboard = {
+                w: Math.max(1, data.clipboard.w | 0),
+                h: Math.max(1, data.clipboard.h | 0),
+                pixels: deserializePixelMap(data.clipboard.pixels),
+              };
+            }
+          } catch (_) {}
+        }
+
+        function syncSettingsUi() {
+          state.color = state.palette[state.paletteIndex];
+          setSwatchEl(bgColorInput, state.bgColor);
+          setSwatchEl(accentColorInput, state.accentColor);
+          canvas.style.background = state.bgColor;
+          pixelGridEnabledInput.checked = state.pixelGridEnabled;
+          setSwatchEl(pixelGridColorInput, state.pixelGridColor);
+          pixelGridThickInput.value = String(state.pixelGridThick);
+          gridEnabledInput.checked = state.gridEnabled;
+          gridXInput.value = String(state.gridCellX);
+          gridYInput.value = String(state.gridCellY);
+          setSwatchEl(gridColorInput, state.gridColor);
+          gridThickInput.value = String(state.gridThick);
+        }
+
+        function screenToWorld(sx, sy) {
+          return {
+            x: Math.floor((sx - state.camX) / state.scale),
+            y: Math.floor((sy - state.camY) / state.scale),
+          };
+        }
+
+        function normRect(a, b) {
+          const x0 = Math.min(a.x, b.x);
+          const y0 = Math.min(a.y, b.y);
+          const x1 = Math.max(a.x, b.x);
+          const y1 = Math.max(a.y, b.y);
+          return { x: x0, y: y0, w: x1 - x0 + 1, h: y1 - y0 + 1 };
+        }
+
+        /** Selection covering whole major-grid cells from point a through b. */
+        function majorGridRect(a, b) {
+          const gx = Math.max(1, state.gridCellX | 0);
+          const gy = Math.max(1, state.gridCellY | 0);
+          const ax0 = Math.floor(a.x / gx) * gx;
+          const ay0 = Math.floor(a.y / gy) * gy;
+          const bx0 = Math.floor(b.x / gx) * gx;
+          const by0 = Math.floor(b.y / gy) * gy;
+          const left = Math.min(ax0, bx0);
+          const top = Math.min(ay0, by0);
+          const right = Math.max(ax0 + gx, bx0 + gx);
+          const bottom = Math.max(ay0 + gy, by0 + gy);
+          return { x: left, y: top, w: right - left, h: bottom - top };
+        }
+
+        function selectionRectFromDrag(a, b, snapMajor) {
+          return snapMajor ? majorGridRect(a, b) : normRect(a, b);
+        }
+
+        function refreshSelectingRect(snapMajor) {
+          if (!state.selecting || !state.selectAnchor) return;
+          const end = state.hover || state.selectAnchor;
+          state.selection = selectionRectFromDrag(
+            state.selectAnchor,
+            end,
+            snapMajor
+          );
+          syncActionButtons();
+          state.needsDraw = true;
+        }
+
+        function cloneRect(rect) {
+          if (!rect) return null;
+          return {
+            x: rect.x | 0,
+            y: rect.y | 0,
+            w: Math.max(1, rect.w | 0),
+            h: Math.max(1, rect.h | 0),
+          };
+        }
+
+        function pointInRect(p, r) {
+          return (
+            r &&
+            p.x >= r.x &&
+            p.y >= r.y &&
+            p.x < r.x + r.w &&
+            p.y < r.y + r.h
+          );
+        }
+
+        function constrainLineEnd(start, end) {
+          if (!state.shiftDown || !start) return end;
+          const dx = end.x - start.x;
+          const dy = end.y - start.y;
+          const adx = Math.abs(dx);
+          const ady = Math.abs(dy);
+          if (adx === 0 && ady === 0) return end;
+          const sx = dx === 0 ? 0 : dx > 0 ? 1 : -1;
+          const sy = dy === 0 ? 0 : dy > 0 ? 1 : -1;
+          if (adx * 2 < ady) return { x: start.x, y: end.y };
+          if (ady * 2 < adx) return { x: end.x, y: start.y };
+          const d = Math.max(adx, ady);
+          return { x: start.x + sx * d, y: start.y + sy * d };
+        }
+
+        function extractRect(rect, remove) {
+          const out = new Map();
+          for (let y = rect.y; y < rect.y + rect.h; y++) {
+            for (let x = rect.x; x < rect.x + rect.w; x++) {
+              const k = key(x, y);
+              if (!pixels.has(k)) continue;
+              out.set(key(x - rect.x, y - rect.y), pixels.get(k));
+              if (remove) pixels.delete(k);
+            }
+          }
+          return { w: rect.w, h: rect.h, pixels: out };
+        }
+
+        function stampClip(clip, ox, oy) {
+          for (const [k, color] of clip.pixels) {
+            const p = parseKey(k);
+            pixels.set(key(p.x + ox, p.y + oy), color);
+          }
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function clearRect(rect) {
+          for (let y = rect.y; y < rect.y + rect.h; y++) {
+            for (let x = rect.x; x < rect.x + rect.w; x++) {
+              pixels.delete(key(x, y));
+            }
+          }
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function commitFloat() {
+          if (!state.float) return;
+          stampClip(state.float, state.float.x, state.float.y);
+          state.selection = {
+            x: state.float.x,
+            y: state.float.y,
+            w: state.float.w,
+            h: state.float.h,
+          };
+          state.float = null;
+          state.moving = false;
+          state.moveGrab = null;
+          canvas.classList.remove("moving");
+          syncActionButtons();
+          state.needsDraw = true;
+        }
+
+        function syncSizeHud() {
+          const active =
+            state.tool === "brush" ||
+            state.tool === "eraser" ||
+            state.tool === "line";
+          sizeHud.classList.toggle("inactive", !active);
+          brushSizeInput.value = String(state.brushSize);
+          brushSizeVal.textContent = String(state.brushSize);
+        }
+
+        function setBrushSize(n) {
+          const next = clampInt(n, 1, 32, state.brushSize);
+          if (next === state.brushSize) {
+            syncSizeHud();
+            return;
+          }
+          state.brushSize = next;
+          syncSizeHud();
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function setTool(tool) {
+          if (state.float && tool !== "select") {
+            pushUndo();
+            commitFloat();
+          }
+          state.tool = tool;
+          state.lining = false;
+          state.lineStart = null;
+          state.lineEnd = null;
+          brushBtn.classList.toggle("active", tool === "brush");
+          eraserBtn.classList.toggle("active", tool === "eraser");
+          lineBtn.classList.toggle("active", tool === "line");
+          selectBtn.classList.toggle("active", tool === "select");
+          eyedropperBtn.classList.toggle("active", tool === "eyedropper");
+          brushBtn.setAttribute("aria-pressed", tool === "brush" ? "true" : "false");
+          eraserBtn.setAttribute("aria-pressed", tool === "eraser" ? "true" : "false");
+          lineBtn.setAttribute("aria-pressed", tool === "line" ? "true" : "false");
+          selectBtn.setAttribute("aria-pressed", tool === "select" ? "true" : "false");
+          eyedropperBtn.setAttribute("aria-pressed", tool === "eyedropper" ? "true" : "false");
+          if (tool !== "select") {
+            state.selection = null;
+            state.selecting = false;
+          }
+          canvas.style.cursor = tool === "eyedropper" ? "copy" : "crosshair";
+          syncSizeHud();
+          syncActionButtons();
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function selectPaletteIndex(index) {
+          if (index < 0 || index >= state.palette.length) return;
+          state.paletteIndex = index;
+          state.color = state.palette[index];
+          syncPaletteActive();
+          saveSettings();
+        }
+
+        function setSlotColor(index, color) {
+          const hex = normalizeHex(color);
+          if (!/^#[0-9a-f]{6}$/.test(hex)) return;
+          if (index < 0 || index >= state.palette.length) return;
+          state.palette[index] = hex;
+          const slot = paletteEl.querySelector(
+            '.palette-slot[data-index="' + index + '"]'
+          );
+          if (slot) {
+            slot.style.background = hex;
+            slot.dataset.color = hex;
+            slot.title =
+              index + 1 + ": " + hex + " · click select/edit · shift-click delete";
+          }
+          if (state.paletteIndex === index) state.color = hex;
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function addPaletteSlot(color) {
+          if (state.palette.length >= MAX_PALETTE_SIZE) return;
+          const hex =
+            normalizeHex(color) ||
+            state.color ||
+            DEFAULT_PALETTE[0];
+          state.palette.push(/^#[0-9a-f]{6}$/.test(hex) ? hex : DEFAULT_PALETTE[0]);
+          state.paletteIndex = state.palette.length - 1;
+          state.color = state.palette[state.paletteIndex];
+          buildPalette();
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function removePaletteSlot(index) {
+          if (state.palette.length <= 1) return;
+          if (index < 0 || index >= state.palette.length) return;
+          state.palette.splice(index, 1);
+          if (state.paletteIndex > index) state.paletteIndex -= 1;
+          if (state.paletteIndex >= state.palette.length) {
+            state.paletteIndex = state.palette.length - 1;
+          }
+          state.color = state.palette[state.paletteIndex];
+          closeColorPicker();
+          buildPalette();
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function sampleColorAt(wx, wy) {
+          if (state.float) {
+            const fx = wx - state.float.x;
+            const fy = wy - state.float.y;
+            if (
+              fx >= 0 &&
+              fy >= 0 &&
+              fx < state.float.w &&
+              fy < state.float.h
+            ) {
+              const floated = state.float.pixels.get(key(fx, fy));
+              if (floated) return normalizeHex(floated) || floated;
+            }
+          }
+          const painted = pixels.get(key(wx, wy));
+          if (painted) return normalizeHex(painted) || painted;
+          return normalizeHex(state.bgColor) || state.bgColor;
+        }
+
+        function applyEyedropperAt(wx, wy) {
+          const hex = sampleColorAt(wx, wy);
+          if (!/^#[0-9a-f]{6}$/.test(hex)) return;
+          const existing = state.palette.findIndex((c) => c === hex);
+          if (existing >= 0) {
+            selectPaletteIndex(existing);
+          } else {
+            setSlotColor(state.paletteIndex, hex);
+          }
+        }
+
+        function syncPaletteActive() {
+          for (const btn of paletteEl.querySelectorAll(".palette-slot[data-index]")) {
+            const idx = +btn.dataset.index;
+            btn.classList.toggle("active", idx === state.paletteIndex);
+          }
+        }
+
+        const colorPopover = document.getElementById("color-popover");
+        const cpSv = document.getElementById("cp-sv");
+        const cpSvCanvas = document.getElementById("cp-sv-canvas");
+        const cpSvCtx = cpSvCanvas.getContext("2d");
+        const cpSvCursor = document.getElementById("cp-sv-cursor");
+        const cpHue = document.getElementById("cp-hue");
+        const cpHueCursor = document.getElementById("cp-hue-cursor");
+        const cpSat = document.getElementById("cp-sat");
+        const cpSatCursor = document.getElementById("cp-sat-cursor");
+        const cpBri = document.getElementById("cp-bri");
+        const cpBriCursor = document.getElementById("cp-bri-cursor");
+        const cpPreview = document.getElementById("cp-preview");
+        const cpHex = document.getElementById("cp-hex");
+
+        const colorPicker = {
+          open: false,
+          h: 0,
+          s: 1,
+          v: 1,
+          hex: "#ffffff",
+          onChange: null,
+          anchor: null,
+          dragging: null,
+          skipNextHexChange: false,
+        };
+
+        function paintSv() {
+          const w = cpSvCanvas.width;
+          const h = cpSvCanvas.height;
+          const { r, g, b } = hsvToRgb(colorPicker.h, 1, 1);
+          const pure = rgbToHex(r, g, b);
+          const ctx = cpSvCtx;
+          ctx.clearRect(0, 0, w, h);
+          ctx.fillStyle = pure;
+          ctx.fillRect(0, 0, w, h);
+          const white = ctx.createLinearGradient(0, 0, w, 0);
+          white.addColorStop(0, "#ffffff");
+          white.addColorStop(1, "rgba(255,255,255,0)");
+          ctx.fillStyle = white;
+          ctx.fillRect(0, 0, w, h);
+          const black = ctx.createLinearGradient(0, 0, 0, h);
+          black.addColorStop(0, "rgba(0,0,0,0)");
+          black.addColorStop(1, "#000000");
+          ctx.fillStyle = black;
+          ctx.fillRect(0, 0, w, h);
+        }
+
+        function paintSatBriSliders() {
+          const h = colorPicker.h;
+          const s = colorPicker.s;
+          const v = colorPicker.v;
+          const satLeft = hsvToHex(h, 0, v);
+          const satRight = hsvToHex(h, 1, v);
+          cpSat.style.background =
+            "linear-gradient(to right, " + satLeft + ", " + satRight + ")";
+          const briLeft = "#000000";
+          const briRight = hsvToHex(h, s, 1);
+          cpBri.style.background =
+            "linear-gradient(to right, " + briLeft + ", " + briRight + ")";
+        }
+
+        function syncPickerUi(preserveHexField) {
+          // colorPicker.hex is authoritative. HSV is only for the sliders;
+          // converting HSV→RGB can drift by 1 (e.g. #6410ff ↔ #6310ff).
+          const hex = colorPicker.hex || hsvToHex(colorPicker.h, colorPicker.s, colorPicker.v);
+          cpPreview.style.background = hex;
+          if (!preserveHexField) cpHex.value = hex;
+          cpSvCursor.style.left = colorPicker.s * 100 + "%";
+          cpSvCursor.style.top = (1 - colorPicker.v) * 100 + "%";
+          cpHueCursor.style.left = (colorPicker.h / 360) * 100 + "%";
+          cpHueCursor.style.background = hsvToHex(colorPicker.h, 1, 1);
+          cpSatCursor.style.left = colorPicker.s * 100 + "%";
+          cpSatCursor.style.background = hex;
+          cpBriCursor.style.left = colorPicker.v * 100 + "%";
+          cpBriCursor.style.background = hex;
+          paintSatBriSliders();
+          paintSv();
+          if (colorPicker.onChange) colorPicker.onChange(hex);
+        }
+
+        function setPickerFromHex(hex) {
+          const h = normalizeHex(hex);
+          if (!/^#[0-9a-f]{6}$/.test(h)) return false;
+          const rgb = hexToRgb(h);
+          const hsv = rgbToHsv(rgb.r, rgb.g, rgb.b);
+          colorPicker.h = hsv.h;
+          colorPicker.s = hsv.s;
+          colorPicker.v = hsv.v;
+          colorPicker.hex = h;
+          return true;
+        }
+
+        function setPickerFromHsv() {
+          colorPicker.hex = hsvToHex(colorPicker.h, colorPicker.s, colorPicker.v);
+        }
+
+        function placePopover(anchor) {
+          colorPopover.hidden = false;
+          colorPopover.classList.add("open");
+          const ar = anchor.getBoundingClientRect();
+          const pr = colorPopover.getBoundingClientRect();
+          let left = ar.right + 8;
+          let top = ar.top;
+          if (left + pr.width > window.innerWidth - 8) {
+            left = ar.left - pr.width - 8;
+          }
+          if (left < 8) left = 8;
+          if (top + pr.height > window.innerHeight - 8) {
+            top = window.innerHeight - pr.height - 8;
+          }
+          if (top < 8) top = 8;
+          colorPopover.style.left = left + "px";
+          colorPopover.style.top = top + "px";
+        }
+
+        function openColorPicker(anchor, hex, onChange) {
+          colorPicker.anchor = anchor;
+          colorPicker.onChange = onChange;
+          setPickerFromHex(hex || "#ffffff");
+          colorPicker.open = true;
+          syncPickerUi(false);
+          placePopover(anchor);
+        }
+
+        function closeColorPicker() {
+          if (!colorPicker.open) return;
+          colorPicker.open = false;
+          colorPicker.onChange = null;
+          colorPicker.anchor = null;
+          colorPicker.dragging = null;
+          colorPopover.classList.remove("open");
+          colorPopover.hidden = true;
+        }
+
+        function svFromEvent(e) {
+          const rect = cpSv.getBoundingClientRect();
+          const x = Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+          const y = Math.min(1, Math.max(0, (e.clientY - rect.top) / rect.height));
+          colorPicker.s = x;
+          colorPicker.v = 1 - y;
+          setPickerFromHsv();
+          syncPickerUi(false);
+        }
+
+        function sliderXFromEvent(el, e) {
+          const rect = el.getBoundingClientRect();
+          return Math.min(1, Math.max(0, (e.clientX - rect.left) / rect.width));
+        }
+
+        function hueFromEvent(e) {
+          colorPicker.h = sliderXFromEvent(cpHue, e) * 360;
+          setPickerFromHsv();
+          syncPickerUi(false);
+        }
+
+        function satFromEvent(e) {
+          colorPicker.s = sliderXFromEvent(cpSat, e);
+          setPickerFromHsv();
+          syncPickerUi(false);
+        }
+
+        function briFromEvent(e) {
+          colorPicker.v = sliderXFromEvent(cpBri, e);
+          setPickerFromHsv();
+          syncPickerUi(false);
+        }
+
+        function bindSlider(el, key, handler) {
+          el.addEventListener("pointerdown", (e) => {
+            e.preventDefault();
+            el.setPointerCapture(e.pointerId);
+            colorPicker.dragging = key;
+            handler(e);
+          });
+          el.addEventListener("pointermove", (e) => {
+            if (colorPicker.dragging === key) handler(e);
+          });
+          el.addEventListener("pointerup", () => {
+            colorPicker.dragging = null;
+          });
+        }
+
+        cpSv.addEventListener("pointerdown", (e) => {
+          e.preventDefault();
+          cpSv.setPointerCapture(e.pointerId);
+          colorPicker.dragging = "sv";
+          svFromEvent(e);
+        });
+        cpSv.addEventListener("pointermove", (e) => {
+          if (colorPicker.dragging === "sv") svFromEvent(e);
+        });
+        cpSv.addEventListener("pointerup", () => {
+          colorPicker.dragging = null;
+        });
+
+        bindSlider(cpHue, "hue", hueFromEvent);
+        bindSlider(cpSat, "sat", satFromEvent);
+        bindSlider(cpBri, "bri", briFromEvent);
+
+        function readHexInputValue() {
+          let v = cpHex.value.trim();
+          if (v && v[0] !== "#") v = "#" + v;
+          return normalizeHex(v);
+        }
+
+        function commitHexInput() {
+          const v = readHexInputValue();
+          if (!setPickerFromHex(v)) {
+            return false;
+          }
+          cpHex.value = v;
+          syncPickerUi(true);
+          return true;
+        }
+
+        cpHex.addEventListener("input", () => {
+          const v = readHexInputValue();
+          // Keep the field as typed while incomplete; only lock when valid.
+          if (setPickerFromHex(v)) syncPickerUi(true);
+        });
+        cpHex.addEventListener("change", () => {
+          if (colorPicker.skipNextHexChange) {
+            colorPicker.skipNextHexChange = false;
+            return;
+          }
+          if (!colorPicker.open) return;
+          if (!commitHexInput()) {
+            // Revert invalid text to the last locked hex.
+            cpHex.value = colorPicker.hex;
+            syncPickerUi(false);
+          }
+        });
+        cpHex.addEventListener("keydown", (e) => {
+          if (e.key !== "Enter") return;
+          e.preventDefault();
+          e.stopPropagation();
+          commitHexInput();
+          colorPicker.skipNextHexChange = true;
+          closeColorPicker();
+        });
+
+        document.addEventListener("pointerdown", (e) => {
+          if (!colorPicker.open) return;
+          if (colorPopover.contains(e.target)) return;
+          if (colorPicker.anchor && colorPicker.anchor.contains(e.target)) return;
+          closeColorPicker();
+        });
+
+        function buildPalette() {
+          paletteEl.innerHTML = "";
+          state.palette.forEach((color, i) => {
+            const slot = document.createElement("button");
+            slot.type = "button";
+            slot.className = "palette-slot";
+            slot.dataset.index = String(i);
+            slot.dataset.color = color;
+            slot.title =
+              i + 1 + ": " + color + " · click select/edit · shift-click delete";
+            slot.style.background = color;
+            slot.setAttribute("aria-label", "Palette color " + (i + 1));
+            const idx = document.createElement("span");
+            idx.className = "idx";
+            idx.textContent = String(i + 1);
+            slot.appendChild(idx);
+            slot.addEventListener("click", (e) => {
+              if (e.shiftKey) {
+                e.preventDefault();
+                removePaletteSlot(i);
+                return;
+              }
+              if (state.paletteIndex === i) {
+                openColorPicker(slot, state.palette[i], (hex) => setSlotColor(i, hex));
+              } else {
+                selectPaletteIndex(i);
+              }
+            });
+            paletteEl.appendChild(slot);
+          });
+
+          const addBtn = document.createElement("button");
+          addBtn.type = "button";
+          addBtn.className = "palette-slot palette-add";
+          addBtn.title = "Add color slot";
+          addBtn.setAttribute("aria-label", "Add color slot");
+          addBtn.textContent = "+";
+          addBtn.disabled = state.palette.length >= MAX_PALETTE_SIZE;
+          addBtn.addEventListener("click", () => {
+            addPaletteSlot(state.color);
+            const index = state.paletteIndex;
+            const slot = paletteEl.querySelector(
+              '.palette-slot[data-index="' + index + '"]'
+            );
+            if (slot) {
+              openColorPicker(slot, state.palette[index], (hex) =>
+                setSlotColor(index, hex)
+              );
+            }
+          });
+          paletteEl.appendChild(addBtn);
+          syncPaletteActive();
+        }
+        function activeSelectionRect() {
+          if (state.float) {
+            return {
+              x: state.float.x,
+              y: state.float.y,
+              w: state.float.w,
+              h: state.float.h,
+            };
+          }
+          return state.selection;
+        }
+
+        function ensureSelectionForExport() {
+          const rect = activeSelectionRect();
+          if (rect) return rect;
+          setTool("select");
+          setExportMessage("Select an area first");
+          return null;
+        }
+
+        function buildSelectionPngBlob(rectOverride) {
+          if (!rectOverride && state.float) commitFloat();
+          const rect = rectOverride || activeSelectionRect();
+          if (!rect || rect.w < 1 || rect.h < 1) return null;
+
+          const off = document.createElement("canvas");
+          off.width = rect.w;
+          off.height = rect.h;
+          const octx = off.getContext("2d", { alpha: true });
+          octx.clearRect(0, 0, rect.w, rect.h);
+
+          for (let y = 0; y < rect.h; y++) {
+            for (let x = 0; x < rect.w; x++) {
+              const color = pixels.get(key(rect.x + x, rect.y + y));
+              if (!color) continue;
+              octx.fillStyle = color;
+              octx.fillRect(x, y, 1, 1);
+            }
+          }
+
+          return new Promise((resolve) => {
+            off.toBlob((blob) => resolve(blob), "image/png");
+          });
+        }
+
+        function setExportMessage(message) {
+          // Transient / error feedback lives on the publish control title (hover).
+          if (message) {
+            publishBtn.title = message;
+            publishBtn.setAttribute("aria-label", message);
+          } else if (state.lastPublishSelection && !(state.selection || state.float)) {
+            publishBtn.title =
+              "Publish last area (" +
+              state.lastPublishSelection.w +
+              "×" +
+              state.lastPublishSelection.h +
+              ")";
+            publishBtn.setAttribute("aria-label", "Publish last area");
+          } else {
+            publishBtn.title = "Publish selection PNG";
+            publishBtn.setAttribute("aria-label", "Publish link");
+          }
+        }
+
+        function clearExportFeedback() {
+          exportFeedback.hidden = true;
+          exportLink.hidden = true;
+          exportCopied.hidden = true;
+          exportLink.removeAttribute("href");
+        }
+
+        function showExportLink(url) {
+          exportFeedback.hidden = false;
+          exportLink.hidden = false;
+          exportLink.href = url;
+          exportLink.title = "Open public link";
+          exportCopied.hidden = false;
+          exportCopied.title = "Public link copied";
+        }
+
+        function rgbToHex(r, g, b) {
+          return (
+            "#" +
+            ((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)
+          );
+        }
+
+        function placeImportedPixels(map, w, h) {
+          pushUndo();
+          if (state.float) commitFloat();
+          // Drop at hover so it lands under the cursor / drop point
+          const ox = state.hover.x;
+          const oy = state.hover.y;
+          state.float = {
+            x: ox,
+            y: oy,
+            w: w,
+            h: h,
+            pixels: map,
+          };
+          state.selection = { x: ox, y: oy, w: w, h: h };
+          setTool("select");
+          syncActionButtons();
+          saveSettings();
+          state.needsDraw = true;
+        }
+
+        function imageFileFromClipboardData(data) {
+          if (!data) return null;
+          const items = data.items;
+          if (items && items.length) {
+            for (let i = 0; i < items.length; i++) {
+              const item = items[i];
+              if (item && item.type && item.type.startsWith("image/")) {
+                const file = item.getAsFile();
+                if (file) return file;
+              }
+            }
+          }
+          const files = data.files;
+          if (files && files.length) {
+            for (let i = 0; i < files.length; i++) {
+              const file = files[i];
+              if (file && String(file.type || "").startsWith("image/")) return file;
+            }
+          }
+          return null;
+        }
+
+        async function tryPasteSystemImage() {
+          if (navigator.clipboard && typeof navigator.clipboard.read === "function") {
+            try {
+              const items = await navigator.clipboard.read();
+              for (const item of items) {
+                const type = (item.types || []).find((t) =>
+                  String(t).startsWith("image/")
+                );
+                if (!type) continue;
+                const blob = await item.getType(type);
+                const file = new File(
+                  [blob],
+                  "paste." + (type.split("/")[1] || "png"),
+                  { type: blob.type || type }
+                );
+                await importImageFile(file, {
+                  maxDim: PASTE_MAX_DIM,
+                  maxBytes: PASTE_MAX_BYTES,
+                });
+                return true;
+              }
+            } catch (_) {
+              /* permission denied / empty clipboard */
+            }
+          }
+          return false;
+        }
+
+        async function pasteFromUser() {
+          if (await tryPasteSystemImage()) return;
+          pasteClipboard();
+        }
+
+        async function importImageFile(file, opts) {
+          if (!file) return;
+          const options = opts || {};
+          const maxBytes =
+            options.maxBytes != null ? options.maxBytes : IMPORT_MAX_BYTES;
+          const maxDim = options.maxDim != null ? options.maxDim : IMPORT_MAX_DIM;
+          if (!String(file.type || "").startsWith("image/")) {
+            setExportMessage("Not an image");
+            return;
+          }
+          if (file.size > maxBytes) {
+            setExportMessage(
+              "Max " +
+                (maxBytes >= 1024 * 1024
+                  ? Math.round(maxBytes / (1024 * 1024)) + "MB"
+                  : Math.round(maxBytes / 1024) + "KB") +
+                " (" +
+                (file.size >= 1024 * 1024
+                  ? (file.size / (1024 * 1024)).toFixed(1) + "MB"
+                  : Math.ceil(file.size / 1024) + "KB") +
+                ")"
+            );
+            return;
+          }
+
+          setExportMessage("Importing…");
+          try {
+            let bitmap;
+            if (typeof createImageBitmap === "function") {
+              bitmap = await createImageBitmap(file);
+            } else {
+              bitmap = await new Promise((resolve, reject) => {
+                const url = URL.createObjectURL(file);
+                const img = new Image();
+                img.onload = () => {
+                  URL.revokeObjectURL(url);
+                  resolve(img);
+                };
+                img.onerror = () => {
+                  URL.revokeObjectURL(url);
+                  reject(new Error("decode failed"));
+                };
+                img.src = url;
+              });
+            }
+
+            const w = bitmap.width | 0;
+            const h = bitmap.height | 0;
+            if (w < 1 || h < 1) {
+              setExportMessage("Empty image");
+              return;
+            }
+            if (w > maxDim || h > maxDim) {
+              setExportMessage("Max " + maxDim + "×" + maxDim + "px");
+              if (bitmap.close) bitmap.close();
+              return;
+            }
+
+            const off = document.createElement("canvas");
+            off.width = w;
+            off.height = h;
+            const octx = off.getContext("2d", { willReadFrequently: true });
+            octx.clearRect(0, 0, w, h);
+            octx.drawImage(bitmap, 0, 0);
+            if (bitmap.close) bitmap.close();
+
+            const data = octx.getImageData(0, 0, w, h).data;
+            const map = new Map();
+            for (let y = 0; y < h; y++) {
+              for (let x = 0; x < w; x++) {
+                const i = (y * w + x) * 4;
+                const a = data[i + 3];
+                if (a < 8) continue;
+                map.set(key(x, y), rgbToHex(data[i], data[i + 1], data[i + 2]));
+              }
+            }
+
+            if (!map.size) {
+              setExportMessage("No opaque pixels");
+              return;
+            }
+
+            placeImportedPixels(map, w, h);
+            setExportMessage("");
+          } catch (_) {
+            setExportMessage("Import failed");
+          }
+        }
+
+        async function downloadSelectionPng() {
+          const rect = ensureSelectionForExport();
+          if (!rect) return;
+          setExportMessage("Rendering…");
+          const blob = await buildSelectionPngBlob();
+          if (!blob) {
+            setExportMessage("Nothing to export");
+            return;
+          }
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement("a");
+          a.href = url;
+          a.download = "draw-" + rect.w + "x" + rect.h + ".png";
+          document.body.appendChild(a);
+          a.click();
+          a.remove();
+          URL.revokeObjectURL(url);
+          setExportMessage("Downloaded " + rect.w + "×" + rect.h);
+        }
+
+        async function publishSelectionPng() {
+          // Only touch canvas state when there is a live selection/float.
+          if (state.float) commitFloat();
+          const rect = activeSelectionRect() || cloneRect(state.lastPublishSelection);
+          if (!rect) {
+            setExportMessage("Select an area first");
+            return;
+          }
+          setExportMessage("Publishing…");
+          publishBtn.disabled = true;
+          try {
+            // Explicit rect: last-publish fallback does not create a selection.
+            const blob = await buildSelectionPngBlob(rect);
+            if (!blob) {
+              setExportMessage("Nothing to export");
+              return;
+            }
+            const res = await fetch("/api/export", {
+              method: "POST",
+              headers: { "Content-Type": "image/png" },
+              body: blob,
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) {
+              setExportMessage(data.error || "Publish failed");
+              return;
+            }
+            state.lastPublishSelection = cloneRect(rect);
+            saveSettings();
+            const abs =
+              data.absoluteUrl ||
+              "https://draw.63616c6c616e313031.com/" + (data.name || "");
+            showExportLink(abs);
+            setExportMessage("");
+            try {
+              await navigator.clipboard.writeText(abs);
+              exportCopied.title = "Public link copied";
+              exportCopied.hidden = false;
+            } catch (_) {
+              exportCopied.hidden = true;
+            }
+          } catch (err) {
+            setExportMessage("Publish failed");
+          } finally {
+            syncActionButtons();
+          }
+        }
+
+        function syncActionButtons() {
+          const hasSel = !!(state.selection || state.float);
+          const canPublish = hasSel || !!state.lastPublishSelection;
+          cutBtn.disabled = !hasSel;
+          copyBtn.disabled = !hasSel;
+          // Always allow paste — may pull an image from the system clipboard.
+          pasteBtn.disabled = false;
+          pasteBtn.title = state.clipboard
+            ? "Paste (⌘/Ctrl+V)"
+            : "Paste image or selection (⌘/Ctrl+V)";
+          downloadBtn.disabled = !hasSel;
+          publishBtn.disabled = !canPublish;
+          const title = publishBtn.title || "";
+          if (
+            !title ||
+            title === "Publish selection PNG" ||
+            title === "Publish link" ||
+            title.startsWith("Publish last area")
+          ) {
+            setExportMessage("");
+          }
+        }
+
+        function copySelection() {
+          const rect = state.float
+            ? { x: state.float.x, y: state.float.y, w: state.float.w, h: state.float.h }
+            : state.selection;
+          if (!rect) return;
+          if (state.float) {
+            state.clipboard = {
+              w: state.float.w,
+              h: state.float.h,
+              pixels: new Map(state.float.pixels),
+            };
+          } else {
+            state.clipboard = extractRect(rect, false);
+          }
+          syncActionButtons();
+          saveSettings();
+        }
+
+        function cutSelection() {
+          if (!state.float && !state.selection) return;
+          pushUndo();
+          if (state.float) {
+            state.clipboard = {
+              w: state.float.w,
+              h: state.float.h,
+              pixels: new Map(state.float.pixels),
+            };
+            state.float = null;
+            state.selection = null;
+            state.moving = false;
+            state.moveGrab = null;
+            canvas.classList.remove("moving");
+          } else if (state.selection) {
+            state.clipboard = extractRect(state.selection, true);
+            state.selection = null;
+          } else {
+            return;
+          }
+          syncActionButtons();
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function pasteClipboard() {
+          if (!state.clipboard) return;
+          pushUndo();
+          if (state.float) commitFloat();
+          const ox = state.hover.x;
+          const oy = state.hover.y;
+          state.float = {
+            x: ox,
+            y: oy,
+            w: state.clipboard.w,
+            h: state.clipboard.h,
+            pixels: new Map(state.clipboard.pixels),
+          };
+          state.selection = {
+            x: ox,
+            y: oy,
+            w: state.clipboard.w,
+            h: state.clipboard.h,
+          };
+          setTool("select");
+          syncActionButtons();
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function deleteSelection() {
+          if (!state.float && !state.selection) return;
+          pushUndo();
+          if (state.float) {
+            state.float = null;
+            state.selection = null;
+            state.moving = false;
+            state.moveGrab = null;
+            canvas.classList.remove("moving");
+          } else if (state.selection) {
+            clearRect(state.selection);
+            state.selection = null;
+          }
+          syncActionButtons();
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function clearSelection() {
+          if (state.float || state.selection) pushUndo();
+          if (state.float) commitFloat();
+          state.selection = null;
+          state.selecting = false;
+          state.lining = false;
+          state.lineStart = null;
+          state.lineEnd = null;
+          syncActionButtons();
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function resize() {
+          state.dpr = Math.max(1, Math.min(2, window.devicePixelRatio || 1));
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          canvas.width = Math.round(w * state.dpr);
+          canvas.height = Math.round(h * state.dpr);
+          canvas.style.width = w + "px";
+          canvas.style.height = h + "px";
+          ctx.setTransform(state.dpr, 0, 0, state.dpr, 0, 0);
+          state.needsDraw = true;
+        }
+
+        function zoomAt(sx, sy, nextScale) {
+          const clamped = Math.max(MIN_SCALE, Math.min(MAX_SCALE, nextScale));
+          const wx = (sx - state.camX) / state.scale;
+          const wy = (sy - state.camY) / state.scale;
+          state.scale = clamped;
+          state.camX = sx - wx * state.scale;
+          state.camY = sy - wy * state.scale;
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function setPixel(x, y, color) {
+          const k = key(x, y);
+          if (pixels.get(k) === color) return;
+          pixels.set(k, color);
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function erasePixel(x, y) {
+          const k = key(x, y);
+          if (!pixels.has(k)) return;
+          pixels.delete(k);
+          state.needsDraw = true;
+          saveSettings();
+        }
+
+        function applyPixel(x, y, color) {
+          if (color == null) erasePixel(x, y);
+          else setPixel(x, y, color);
+        }
+
+        function applyBrush(cx, cy, color) {
+          const size = Math.max(1, state.brushSize | 0);
+          if (size === 1) {
+            applyPixel(cx, cy, color);
+            return;
+          }
+          const start = -Math.floor((size - 1) / 2);
+          for (let dy = 0; dy < size; dy++) {
+            for (let dx = 0; dx < size; dx++) {
+              applyPixel(cx + start + dx, cy + start + dy, color);
+            }
+          }
+        }
+
+        function paintBrushLine(x0, y0, x1, y1, color) {
+          forEachLineCell(x0, y0, x1, y1, (x, y) => applyBrush(x, y, color));
+        }
+
+        function paintLine(x0, y0, x1, y1, color) {
+          let dx = Math.abs(x1 - x0);
+          let dy = -Math.abs(y1 - y0);
+          const sx = x0 < x1 ? 1 : -1;
+          const sy = y0 < y1 ? 1 : -1;
+          let err = dx + dy;
+          let x = x0;
+          let y = y0;
+          for (;;) {
+            applyPixel(x, y, color);
+            if (x === x1 && y === y1) break;
+            const e2 = 2 * err;
+            if (e2 >= dy) {
+              err += dy;
+              x += sx;
+            }
+            if (e2 <= dx) {
+              err += dx;
+              y += sy;
+            }
+          }
+        }
+        function forEachLineCell(x0, y0, x1, y1, fn) {
+          let dx = Math.abs(x1 - x0);
+          let dy = -Math.abs(y1 - y0);
+          const sx = x0 < x1 ? 1 : -1;
+          const sy = y0 < y1 ? 1 : -1;
+          let err = dx + dy;
+          let x = x0;
+          let y = y0;
+          for (;;) {
+            fn(x, y);
+            if (x === x1 && y === y1) break;
+            const e2 = 2 * err;
+            if (e2 >= dy) {
+              err += dy;
+              x += sx;
+            }
+            if (e2 <= dx) {
+              err += dx;
+              y += sy;
+            }
+          }
+        }
+
+        function paintAt(sx, sy) {
+          const w = screenToWorld(sx, sy);
+          const color = state.tool === "eraser" ? null : state.color;
+          if (state.lastWorld) {
+            paintBrushLine(state.lastWorld.x, state.lastWorld.y, w.x, w.y, color);
+          } else {
+            applyBrush(w.x, w.y, color);
+          }
+          state.lastWorld = w;
+          state.lastPainted = { x: w.x, y: w.y };
+        }
+
+                function drawClipPixels(clip, ox, oy, s) {
+          for (const [k, color] of clip.pixels) {
+            const p = parseKey(k);
+            ctx.fillStyle = color;
+            ctx.fillRect(
+              state.camX + (p.x + ox) * s,
+              state.camY + (p.y + oy) * s,
+              s,
+              s
+            );
+          }
+        }
+
+        function drawMarchingAnts(rect, s) {
+          const x = state.camX + rect.x * s;
+          const y = state.camY + rect.y * s;
+          const w = rect.w * s;
+          const h = rect.h * s;
+          ctx.save();
+          ctx.lineWidth = 2;
+          ctx.setLineDash([6, 4]);
+          ctx.lineDashOffset = -state.dashOffset;
+          ctx.strokeStyle = "rgba(0,0,0,0.85)";
+          ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+          ctx.lineDashOffset = -state.dashOffset + 5;
+          ctx.strokeStyle = withAlpha(state.accentColor, 0.95);
+          ctx.strokeRect(x + 1, y + 1, w - 2, h - 2);
+          ctx.restore();
+          ctx.fillStyle = withAlpha(state.accentColor, 0.08);
+          ctx.fillRect(x, y, w, h);
+        }
+
+        function drawPixelGrid(x0, y0, x1, y1, s, viewW, viewH) {
+          if (!state.pixelGridEnabled || s < 10) return;
+          const alpha = Math.min(0.35, (s - 8) / 70);
+          ctx.beginPath();
+          ctx.strokeStyle = withAlpha(state.pixelGridColor, alpha);
+          ctx.lineWidth = state.pixelGridThick;
+          for (let x = x0; x <= x1; x++) {
+            const sx = Math.round(state.camX + x * s) + 0.5;
+            ctx.moveTo(sx, 0);
+            ctx.lineTo(sx, viewH);
+          }
+          for (let y = y0; y <= y1; y++) {
+            const sy = Math.round(state.camY + y * s) + 0.5;
+            ctx.moveTo(0, sy);
+            ctx.lineTo(viewW, sy);
+          }
+          ctx.stroke();
+        }
+
+        function drawMajorGrid(x0, y0, x1, y1, s, viewW, viewH) {
+          if (!state.gridEnabled) return;
+          const gx = state.gridCellX;
+          const gy = state.gridCellY;
+          if (gx < 1 || gy < 1) return;
+
+          const startX = Math.floor(x0 / gx) * gx;
+          const startY = Math.floor(y0 / gy) * gy;
+
+          ctx.beginPath();
+          ctx.strokeStyle = withAlpha(state.gridColor, 0.45);
+          ctx.lineWidth = state.gridThick;
+          for (let x = startX; x <= x1; x += gx) {
+            const sx = Math.round(state.camX + x * s) + 0.5;
+            ctx.moveTo(sx, 0);
+            ctx.lineTo(sx, viewH);
+          }
+          for (let y = startY; y <= y1; y += gy) {
+            const sy = Math.round(state.camY + y * s) + 0.5;
+            ctx.moveTo(0, sy);
+            ctx.lineTo(viewW, sy);
+          }
+          ctx.stroke();
+        }
+
+        function draw() {
+          const w = window.innerWidth;
+          const h = window.innerHeight;
+          const s = state.scale;
+
+          ctx.fillStyle = state.bgColor;
+          ctx.fillRect(0, 0, w, h);
+
+          const x0 = Math.floor(-state.camX / s) - 1;
+          const y0 = Math.floor(-state.camY / s) - 1;
+          const x1 = Math.ceil((w - state.camX) / s) + 1;
+          const y1 = Math.ceil((h - state.camY) / s) + 1;
+
+          drawPixelGrid(x0, y0, x1, y1, s, w, h);
+          drawMajorGrid(x0, y0, x1, y1, s, w, h);
+
+          {
+            const ox = state.camX;
+            const oy = state.camY;
+            ctx.strokeStyle = withAlpha(state.gridColor, 0.35);
+            ctx.lineWidth = 1;
+            ctx.beginPath();
+            ctx.moveTo(ox, 0);
+            ctx.lineTo(ox, h);
+            ctx.moveTo(0, oy);
+            ctx.lineTo(w, oy);
+            ctx.stroke();
+          }
+
+          for (const [k, color] of pixels) {
+            const p = parseKey(k);
+            if (p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1) continue;
+            ctx.fillStyle = color;
+            ctx.fillRect(state.camX + p.x * s, state.camY + p.y * s, s, s);
+          }
+
+          if (state.lining && state.lineStart && state.lineEnd) {
+            const a = state.lineStart;
+            const b = constrainLineEnd(a, state.lineEnd);
+            const size = Math.max(1, state.brushSize | 0);
+            const start = -Math.floor((size - 1) / 2);
+            ctx.globalAlpha = 0.85;
+            ctx.fillStyle = state.color;
+            forEachLineCell(a.x, a.y, b.x, b.y, (x, y) => {
+              for (let dy = 0; dy < size; dy++) {
+                for (let dx = 0; dx < size; dx++) {
+                  const px = x + start + dx;
+                  const py = y + start + dy;
+                  ctx.fillRect(state.camX + px * s, state.camY + py * s, s, s);
+                }
+              }
+            });
+            ctx.globalAlpha = 1;
+          }
+
+          if (state.float) {
+            drawClipPixels(state.float, state.float.x, state.float.y, s);
+            drawMarchingAnts(
+              {
+                x: state.float.x,
+                y: state.float.y,
+                w: state.float.w,
+                h: state.float.h,
+              },
+              s
+            );
+          } else if (state.selection) {
+            drawMarchingAnts(state.selection, s);
+          }
+
+          if (state.tool !== "select" || !state.selection) {
+            const size =
+              state.tool === "brush" ||
+              state.tool === "eraser" ||
+              state.tool === "line"
+                ? Math.max(1, state.brushSize | 0)
+                : 1;
+            const start = -Math.floor((size - 1) / 2);
+            const hx = state.camX + (state.hover.x + start) * s;
+            const hy = state.camY + (state.hover.y + start) * s;
+            ctx.strokeStyle = withAlpha(state.accentColor, 0.85);
+            ctx.lineWidth = 2;
+            ctx.strokeRect(hx + 1, hy + 1, size * s - 2, size * s - 2);
+          }
+
+        }
+
+        function frame(now) {
+          if (state.selection || state.float || state.selecting) {
+            state.dashOffset = (now / 30) % 20;
+            state.needsDraw = true;
+          }
+          if (state.needsDraw) {
+            state.needsDraw = false;
+            draw();
+          }
+          requestAnimationFrame(frame);
+        }
+
+        function clientPos(e) {
+          const r = canvas.getBoundingClientRect();
+          return { x: e.clientX - r.left, y: e.clientY - r.top };
+        }
+
+        function wantsPan(e) {
+          return state.spaceDown || e.button === 1 || e.buttons === 4;
+        }
+
+        function beginMove(world) {
+          const rect = state.float
+            ? {
+                x: state.float.x,
+                y: state.float.y,
+                w: state.float.w,
+                h: state.float.h,
+              }
+            : state.selection;
+          if (!rect || !pointInRect(world, rect)) return false;
+
+          if (!state.float) {
+            pushUndo();
+            state.float = {
+              x: rect.x,
+              y: rect.y,
+              w: rect.w,
+              h: rect.h,
+              pixels: extractRect(rect, true).pixels,
+            };
+          }
+          state.moving = true;
+          state.moveGrab = {
+            dx: world.x - state.float.x,
+            dy: world.y - state.float.y,
+          };
+          canvas.classList.add("moving");
+          state.needsDraw = true;
+          return true;
+        }
+
+        /** Number fields: allow empty while typing; commit on blur. */
+        function bindOptionalNumber(input, opts) {
+          const apply = (commit) => {
+            const raw = input.value.trim();
+            if (raw === "") {
+              if (commit) input.value = String(opts.get());
+              return;
+            }
+            const next = opts.parse(raw, opts.get());
+            opts.set(next);
+            if (commit) input.value = String(next);
+            opts.onChange();
+          };
+          input.addEventListener("input", () => apply(false));
+          input.addEventListener("change", () => apply(true));
+          input.addEventListener("blur", () => apply(true));
+        }
+
+        canvas.addEventListener("pointerdown", (e) => {
+          canvas.setPointerCapture(e.pointerId);
+          state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+
+          if (state.pointers.size === 2) {
+            const pts = [...state.pointers.values()];
+            const dx = pts[1].x - pts[0].x;
+            const dy = pts[1].y - pts[0].y;
+            state.pinch = {
+              dist: Math.hypot(dx, dy) || 1,
+              scale: state.scale,
+              midX: (pts[0].x + pts[1].x) / 2,
+              midY: (pts[0].y + pts[1].y) / 2,
+            };
+            state.drawing = false;
+            state.lining = false;
+            state.panning = false;
+            state.selecting = false;
+            return;
+          }
+
+          const p = clientPos(e);
+          const world = screenToWorld(p.x, p.y);
+          state.hover = world;
+
+          if (wantsPan(e)) {
+            state.panning = true;
+            state.drawing = false;
+            state.lining = false;
+            state.selecting = false;
+            canvas.classList.add("panning");
+            e.preventDefault();
+            return;
+          }
+
+          if (e.button !== 0) return;
+
+          if (state.tool === "eyedropper") {
+            applyEyedropperAt(world.x, world.y);
+            return;
+          }
+
+          if (state.tool === "brush" || state.tool === "eraser") {
+            pushUndo();
+            if (state.float) commitFloat();
+            if (e.shiftKey && state.lastPainted) {
+              const color = state.tool === "eraser" ? null : state.color;
+              paintBrushLine(
+                state.lastPainted.x,
+                state.lastPainted.y,
+                world.x,
+                world.y,
+                color
+              );
+              state.lastPainted = { x: world.x, y: world.y };
+              state.drawing = false;
+              state.lastWorld = null;
+              state.needsDraw = true;
+              saveSettings();
+              return;
+            }
+            state.drawing = true;
+            state.lastWorld = null;
+            paintAt(p.x, p.y);
+            return;
+          }
+
+          if (state.tool === "line") {
+            pushUndo();
+            if (state.float) commitFloat();
+            state.lining = true;
+            state.lineStart = world;
+            state.lineEnd = world;
+            state.needsDraw = true;
+            return;
+          }
+
+          if (state.tool === "select") {
+            const live = state.float
+              ? {
+                  x: state.float.x,
+                  y: state.float.y,
+                  w: state.float.w,
+                  h: state.float.h,
+                }
+              : state.selection;
+            if (live && pointInRect(world, live)) {
+              beginMove(world);
+              return;
+            }
+            if (state.float) {
+              pushUndo();
+              commitFloat();
+            }
+            state.selecting = true;
+            state.selectAnchor = world;
+            state.selection = selectionRectFromDrag(
+              world,
+              world,
+              e.shiftKey || state.shiftDown
+            );
+            syncActionButtons();
+            state.needsDraw = true;
+          }
+        });
+
+        canvas.addEventListener("pointermove", (e) => {
+          if (state.pointers.has(e.pointerId)) {
+            state.pointers.set(e.pointerId, { x: e.clientX, y: e.clientY });
+          }
+
+          if (state.pointers.size === 2 && state.pinch) {
+            const pts = [...state.pointers.values()];
+            const dx = pts[1].x - pts[0].x;
+            const dy = pts[1].y - pts[0].y;
+            const dist = Math.hypot(dx, dy) || 1;
+            const midX = (pts[0].x + pts[1].x) / 2;
+            const midY = (pts[0].y + pts[1].y) / 2;
+            const r = canvas.getBoundingClientRect();
+            const localMid = { x: midX - r.left, y: midY - r.top };
+            zoomAt(localMid.x, localMid.y, state.pinch.scale * (dist / state.pinch.dist));
+            state.camX += midX - state.pinch.midX;
+            state.camY += midY - state.pinch.midY;
+            state.pinch.midX = midX;
+            state.pinch.midY = midY;
+            state.needsDraw = true;
+            return;
+          }
+
+          const p = clientPos(e);
+          const cell = screenToWorld(p.x, p.y);
+          if (cell.x !== state.hover.x || cell.y !== state.hover.y) {
+            state.hover = cell;
+            state.needsDraw = true;
+          }
+
+          if (state.panning) {
+            state.camX += e.movementX;
+            state.camY += e.movementY;
+            state.needsDraw = true;
+            return;
+          }
+
+          if (state.moving && state.float && state.moveGrab) {
+            state.float.x = cell.x - state.moveGrab.dx;
+            state.float.y = cell.y - state.moveGrab.dy;
+            state.selection = {
+              x: state.float.x,
+              y: state.float.y,
+              w: state.float.w,
+              h: state.float.h,
+            };
+            state.needsDraw = true;
+            return;
+          }
+
+          if (state.selecting && state.selectAnchor) {
+            state.selection = selectionRectFromDrag(
+              state.selectAnchor,
+              cell,
+              e.shiftKey || state.shiftDown
+            );
+            syncActionButtons();
+            state.needsDraw = true;
+            return;
+          }
+
+          if (state.lining && state.lineStart) {
+            state.lineEnd = cell;
+            state.needsDraw = true;
+            return;
+          }
+
+          if (state.drawing) paintAt(p.x, p.y);
+
+          if (state.tool === "select" && !state.panning && !state.moving) {
+            const live = state.float
+              ? {
+                  x: state.float.x,
+                  y: state.float.y,
+                  w: state.float.w,
+                  h: state.float.h,
+                }
+              : state.selection;
+            canvas.style.cursor = pointInRect(cell, live) ? "move" : "crosshair";
+          }
+        });
+
+        function endPointer(e) {
+          state.pointers.delete(e.pointerId);
+          if (state.pointers.size < 2) state.pinch = null;
+          if (state.pointers.size === 0) {
+            if (state.lining && state.lineStart && state.lineEnd) {
+              const end = constrainLineEnd(state.lineStart, state.lineEnd);
+              paintBrushLine(
+                state.lineStart.x,
+                state.lineStart.y,
+                end.x,
+                end.y,
+                state.color
+              );
+              state.lastPainted = { x: end.x, y: end.y };
+            }
+            if (state.moving && state.float) commitFloat();
+            state.drawing = false;
+            state.lining = false;
+            state.lineStart = null;
+            state.lineEnd = null;
+            state.panning = false;
+            state.selecting = false;
+            state.moving = false;
+            state.moveGrab = null;
+            state.lastWorld = null;
+            state.selectAnchor = null;
+            canvas.classList.remove("panning");
+            canvas.classList.remove("moving");
+            syncActionButtons();
+            state.needsDraw = true;
+            saveSettings();
+          }
+        }
+
+        canvas.addEventListener("pointerup", endPointer);
+        canvas.addEventListener("pointercancel", endPointer);
+
+        canvas.addEventListener(
+          "wheel",
+          (e) => {
+            e.preventDefault();
+            if (e.shiftKey) {
+              const delta = e.deltaY !== 0 ? e.deltaY : e.deltaX;
+              state._sizeWheelAcc = (state._sizeWheelAcc || 0) + delta;
+              while (state._sizeWheelAcc <= -40) {
+                state._sizeWheelAcc += 40;
+                setBrushSize(state.brushSize + 1);
+              }
+              while (state._sizeWheelAcc >= 40) {
+                state._sizeWheelAcc -= 40;
+                setBrushSize(state.brushSize - 1);
+              }
+              return;
+            }
+            if (e.ctrlKey || e.metaKey) {
+              const p = clientPos(e);
+              zoomAt(p.x, p.y, state.scale * Math.exp(-e.deltaY * 0.01));
+              return;
+            }
+            state.camX -= e.deltaX;
+            state.camY -= e.deltaY;
+            state.needsDraw = true;
+            saveSettings();
+          },
+          { passive: false }
+        );
+
+        function isTypingTarget(el) {
+          if (!el || el === document.body) return false;
+          const tag = el.tagName;
+          return tag === "INPUT" || tag === "TEXTAREA" || el.isContentEditable;
+        }
+
+        window.addEventListener("keydown", (e) => {
+          if (e.key === "Shift") {
+            state.shiftDown = true;
+            if (state.lining) state.needsDraw = true;
+            if (state.selecting) refreshSelectingRect(true);
+          }
+          if (isTypingTarget(e.target)) return;
+
+          if (e.code === "Space" && !e.repeat) {
+            state.spaceDown = true;
+            e.preventDefault();
+            return;
+          }
+
+          if (!e.metaKey && !e.ctrlKey && !e.altKey && /^[1-9]$/.test(e.key)) {
+            const index = +e.key - 1;
+            if (index < state.palette.length) {
+              e.preventDefault();
+              selectPaletteIndex(index);
+              setTool("brush");
+            }
+            return;
+          }
+
+          const mod = e.metaKey || e.ctrlKey;
+          if (mod && (e.key === "z" || e.key === "Z") && !e.shiftKey) {
+            e.preventDefault();
+            undo();
+            return;
+          }
+          if (mod && (e.key === "z" || e.key === "Z") && e.shiftKey) {
+            e.preventDefault();
+            redo();
+            return;
+          }
+          if (mod && (e.key === "c" || e.key === "C")) {
+            e.preventDefault();
+            copySelection();
+            return;
+          }
+          if (mod && (e.key === "x" || e.key === "X")) {
+            e.preventDefault();
+            cutSelection();
+            return;
+          }
+          if (mod && (e.key === "v" || e.key === "V")) {
+            e.preventDefault();
+            pasteFromUser();
+            return;
+          }
+          if (e.key === "Escape") {
+            e.preventDefault();
+            if (colorPicker.open) {
+              closeColorPicker();
+              return;
+            }
+            clearSelection();
+            return;
+          }
+          if (e.key === "Delete" || e.key === "Backspace" || ((!e.metaKey && !e.ctrlKey && !e.altKey) && (e.key === "x" || e.key === "X"))) {
+            if (state.selection || state.float) {
+              e.preventDefault();
+              deleteSelection();
+            }
+            return;
+          }
+          if (!mod && (e.key === "b" || e.key === "B")) {
+            setTool("brush");
+            return;
+          }
+          if (!mod && (e.key === "e" || e.key === "E")) {
+            setTool("eraser");
+            return;
+          }
+          if (!mod && (e.key === "l" || e.key === "L")) {
+            setTool("line");
+            return;
+          }
+          if (!mod && (e.key === "s" || e.key === "S")) {
+            setTool("select");
+            return;
+          }
+          if (!mod && (e.key === "i" || e.key === "I")) {
+            setTool("eyedropper");
+            return;
+          }
+          if (!mod && e.key === "Tab") {
+            e.preventDefault();
+            const tools = ["brush", "eraser", "line", "select", "eyedropper"];
+            const idx = tools.indexOf(state.tool);
+            const next = e.shiftKey
+              ? tools[(idx <= 0 ? tools.length : idx) - 1]
+              : tools[(idx + 1) % tools.length];
+            setTool(next);
+          }
+        });
+
+        window.addEventListener("keyup", (e) => {
+          if (e.key === "Shift") {
+            state.shiftDown = false;
+            if (state.lining) state.needsDraw = true;
+            if (state.selecting) refreshSelectingRect(false);
+          }
+          if (e.code === "Space") {
+            state.spaceDown = false;
+            if (!state.pointers.size) {
+              state.panning = false;
+              canvas.classList.remove("panning");
+            }
+          }
+        });
+
+        bgColorInput.addEventListener("click", () => {
+          openColorPicker(bgColorInput, state.bgColor, (hex) => {
+            state.bgColor = hex;
+            setSwatchEl(bgColorInput, hex);
+            canvas.style.background = hex;
+            saveSettings();
+            state.needsDraw = true;
+          });
+        });
+
+        accentColorInput.addEventListener("click", () => {
+          openColorPicker(accentColorInput, state.accentColor, (hex) => {
+            state.accentColor = hex;
+            setSwatchEl(accentColorInput, hex);
+            saveSettings();
+            state.needsDraw = true;
+          });
+        });
+
+        pixelGridEnabledInput.addEventListener("change", () => {
+          state.pixelGridEnabled = pixelGridEnabledInput.checked;
+          saveSettings();
+          state.needsDraw = true;
+        });
+        pixelGridColorInput.addEventListener("click", () => {
+          openColorPicker(pixelGridColorInput, state.pixelGridColor, (hex) => {
+            state.pixelGridColor = hex;
+            setSwatchEl(pixelGridColorInput, hex);
+            saveSettings();
+            state.needsDraw = true;
+          });
+        });
+
+        gridEnabledInput.addEventListener("change", () => {
+          state.gridEnabled = gridEnabledInput.checked;
+          saveSettings();
+          state.needsDraw = true;
+        });
+        gridColorInput.addEventListener("click", () => {
+          openColorPicker(gridColorInput, state.gridColor, (hex) => {
+            state.gridColor = hex;
+            setSwatchEl(gridColorInput, hex);
+            saveSettings();
+            state.needsDraw = true;
+          });
+        });
+
+        bindOptionalNumber(gridXInput, {
+          get: () => state.gridCellX,
+          set: (v) => {
+            state.gridCellX = v;
+          },
+          parse: (raw, fallback) => clampInt(raw, 1, 512, fallback),
+          onChange: () => {
+            saveSettings();
+            state.needsDraw = true;
+          },
+        });
+        bindOptionalNumber(gridYInput, {
+          get: () => state.gridCellY,
+          set: (v) => {
+            state.gridCellY = v;
+          },
+          parse: (raw, fallback) => clampInt(raw, 1, 512, fallback),
+          onChange: () => {
+            saveSettings();
+            state.needsDraw = true;
+          },
+        });
+        bindOptionalNumber(gridThickInput, {
+          get: () => state.gridThick,
+          set: (v) => {
+            state.gridThick = v;
+          },
+          parse: (raw, fallback) => clampFloat(raw, 0.5, 8, fallback),
+          onChange: () => {
+            saveSettings();
+            state.needsDraw = true;
+          },
+        });
+        bindOptionalNumber(pixelGridThickInput, {
+          get: () => state.pixelGridThick,
+          set: (v) => {
+            state.pixelGridThick = v;
+          },
+          parse: (raw, fallback) => clampFloat(raw, 0.5, 8, fallback),
+          onChange: () => {
+            saveSettings();
+            state.needsDraw = true;
+          },
+        });
+
+        const settingsBtn = document.getElementById("btn-settings");
+        const settingsPanel = document.getElementById("settings-panel");
+        settingsBtn.addEventListener("click", () => {
+          const open = settingsPanel.classList.toggle("open");
+          settingsPanel.hidden = !open;
+          settingsBtn.classList.toggle("active", open);
+          settingsBtn.setAttribute("aria-pressed", open ? "true" : "false");
+        });
+
+        brushSizeInput.addEventListener("input", () => {
+          setBrushSize(+brushSizeInput.value);
+        });
+
+        brushBtn.addEventListener("click", () => setTool("brush"));
+        eraserBtn.addEventListener("click", () => setTool("eraser"));
+        lineBtn.addEventListener("click", () => setTool("line"));
+        selectBtn.addEventListener("click", () => setTool("select"));
+        eyedropperBtn.addEventListener("click", () => setTool("eyedropper"));
+        cutBtn.addEventListener("click", () => cutSelection());
+        copyBtn.addEventListener("click", () => copySelection());
+        pasteBtn.addEventListener("click", () => pasteFromUser());
+        importBtn.addEventListener("click", () => importFile.click());
+        importFile.addEventListener("change", () => {
+          const file = importFile.files && importFile.files[0];
+          importFile.value = "";
+          if (file) importImageFile(file);
+        });
+        downloadBtn.addEventListener("click", () => downloadSelectionPng());
+        publishBtn.addEventListener("click", () => publishSelectionPng());
+
+        window.addEventListener("paste", (e) => {
+          if (isTypingTarget(e.target)) return;
+          const file = imageFileFromClipboardData(e.clipboardData);
+          if (!file) return;
+          e.preventDefault();
+          importImageFile(file, {
+            maxDim: PASTE_MAX_DIM,
+            maxBytes: PASTE_MAX_BYTES,
+          });
+        });
+
+        window.addEventListener("dragenter", (e) => {
+          if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) {
+            e.preventDefault();
+          }
+        });
+        window.addEventListener("dragover", (e) => {
+          if (e.dataTransfer && [...e.dataTransfer.types].includes("Files")) {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "copy";
+          }
+        });
+        window.addEventListener("drop", (e) => {
+          const file =
+            e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+          if (!file) return;
+          e.preventDefault();
+          // Place under drop cursor
+          const p = clientPos(e);
+          state.hover = screenToWorld(p.x, p.y);
+          importImageFile(file);
+        });
+
+        canvas.addEventListener("auxclick", (e) => e.preventDefault());
+        canvas.addEventListener("contextmenu", (e) => e.preventDefault());
+        window.addEventListener("resize", resize);
+
+        applySchemeCanvasDefaults();
+        loadSettings();
+        syncSettingsUi();
+        syncSizeHud();
+        buildPalette();
+        // Apply tool UI without wiping restored selection
+        brushBtn.classList.toggle("active", state.tool === "brush");
+        eraserBtn.classList.toggle("active", state.tool === "eraser");
+        lineBtn.classList.toggle("active", state.tool === "line");
+        selectBtn.classList.toggle("active", state.tool === "select");
+        eyedropperBtn.classList.toggle("active", state.tool === "eyedropper");
+        brushBtn.setAttribute("aria-pressed", state.tool === "brush" ? "true" : "false");
+        eraserBtn.setAttribute("aria-pressed", state.tool === "eraser" ? "true" : "false");
+        lineBtn.setAttribute("aria-pressed", state.tool === "line" ? "true" : "false");
+        selectBtn.setAttribute("aria-pressed", state.tool === "select" ? "true" : "false");
+        eyedropperBtn.setAttribute("aria-pressed", state.tool === "eyedropper" ? "true" : "false");
+        canvas.style.cursor = state.tool === "eyedropper" ? "copy" : "crosshair";
+        resize();
+        if (!hasSavedCamera) {
+          state.camX = window.innerWidth / 2;
+          state.camY = window.innerHeight / 2;
+        }
+        syncActionButtons();
+        setExportMessage("");
+        state.needsDraw = true;
+        window.addEventListener("beforeunload", () => saveSettings(true));
+        document.addEventListener("visibilitychange", () => {
+          if (document.visibilityState === "hidden") saveSettings(true);
+        });
+        frame(0);
+      })();
+    </script>
+  </body>
+</html>
