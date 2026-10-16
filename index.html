@@ -541,7 +541,7 @@
 
       .color-popover .slider-row {
         display: grid;
-        grid-template-columns: 28px 1fr;
+        grid-template-columns: 28px 1fr 40px;
         gap: 8px;
         align-items: center;
       }
@@ -600,6 +600,26 @@
         height: 28px;
         border: 1px solid var(--line);
         border-radius: 2px;
+      }
+
+      .color-popover .num-input {
+        width: 100%;
+        margin: 0;
+        padding: 2px 4px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--bg0);
+        color: var(--ink);
+        font: inherit;
+        font-size: 11px;
+        text-align: right;
+        -moz-appearance: textfield;
+      }
+
+      .color-popover .num-input::-webkit-inner-spin-button,
+      .color-popover .num-input::-webkit-outer-spin-button {
+        -webkit-appearance: none;
+        margin: 0;
       }
 
       .color-popover .hex-input {
@@ -812,18 +832,21 @@
           <div class="slider-wrap hue-wrap" id="cp-hue">
             <div class="slider-cursor" id="cp-hue-cursor"></div>
           </div>
+          <input class="num-input" id="cp-hue-num" type="number" min="0" max="360" step="1" inputmode="numeric" aria-label="hue value" />
         </div>
         <div class="slider-row">
           <label for="cp-sat">sat</label>
           <div class="slider-wrap" id="cp-sat">
             <div class="slider-cursor" id="cp-sat-cursor"></div>
           </div>
+          <input class="num-input" id="cp-sat-num" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="sat value" />
         </div>
         <div class="slider-row">
           <label for="cp-bri">bri</label>
           <div class="slider-wrap" id="cp-bri">
             <div class="slider-cursor" id="cp-bri-cursor"></div>
           </div>
+          <input class="num-input" id="cp-bri-num" type="number" min="0" max="100" step="1" inputmode="numeric" aria-label="bri value" />
         </div>
       </div>
       <div class="hex-row">
@@ -1696,6 +1719,12 @@
         const cpBriCursor = document.getElementById("cp-bri-cursor");
         const cpPreview = document.getElementById("cp-preview");
         const cpHex = document.getElementById("cp-hex");
+        // H/S/B number fields: [input, max]. Hue is degrees, sat/bri percent.
+        const cpNums = {
+          h: [document.getElementById("cp-hue-num"), 360],
+          s: [document.getElementById("cp-sat-num"), 100],
+          v: [document.getElementById("cp-bri-num"), 100],
+        };
 
         const colorPicker = {
           open: false,
@@ -1758,6 +1787,12 @@
           cpSatCursor.style.background = hex;
           cpBriCursor.style.left = colorPicker.v * 100 + "%";
           cpBriCursor.style.background = hex;
+          for (const k in cpNums) {
+            const [input, max] = cpNums[k];
+            // Don't rewrite the field being typed in.
+            if (document.activeElement === input) continue;
+            input.value = String(Math.round(k === "h" ? colorPicker.h : colorPicker[k] * max));
+          }
           paintSatBriSliders();
           paintSv();
           if (colorPicker.onChange) colorPicker.onChange(hex);
@@ -1773,6 +1808,23 @@
           colorPicker.v = hsv.v;
           colorPicker.hex = h;
           return true;
+        }
+
+        for (const k in cpNums) {
+          const [input, max] = cpNums[k];
+          input.addEventListener("input", () => {
+            const n = parseFloat(input.value);
+            if (!Number.isFinite(n)) return;
+            const c = Math.min(max, Math.max(0, n));
+            colorPicker[k] = k === "h" ? c : c / max;
+            setPickerFromHsv();
+            syncPickerUi(false);
+          });
+          input.addEventListener("blur", () => syncPickerUi(false));
+          input.addEventListener("keydown", (e) => {
+            e.stopPropagation(); // keep tool shortcuts out of the field
+            if (e.key === "Enter") input.blur();
+          });
         }
 
         function setPickerFromHsv() {
