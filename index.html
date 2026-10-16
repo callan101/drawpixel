@@ -773,6 +773,14 @@
           </div>
         </div>
 
+        <p class="panel-label">Pixel labels</p>
+        <div class="settings-block">
+          <label class="grid-toggle">
+            <input type="checkbox" id="hue-labels-enabled" />
+            hue
+          </label>
+        </div>
+
         <p class="panel-label">Major grid</p>
         <div class="settings-block">
           <label class="grid-toggle">
@@ -943,6 +951,7 @@
         const bgColorInput = document.getElementById("bg-color");
         const accentColorInput = document.getElementById("accent-color");
         const pixelGridEnabledInput = document.getElementById("pixel-grid-enabled");
+        const hueLabelsEnabledInput = document.getElementById("hue-labels-enabled");
         const pixelGridColorInput = document.getElementById("pixel-grid-color");
         const pixelGridThickInput = document.getElementById("pixel-grid-thick");
         const gridEnabledInput = document.getElementById("grid-enabled");
@@ -1005,6 +1014,7 @@
           bgColor: "#f2f2f2",
           accentColor: "#1a1a1a",
           pixelGridEnabled: true,
+          hueLabelsEnabled: false,
           pixelGridColor: "#d0d0d0",
           pixelGridThick: 1,
           gridEnabled: true,
@@ -1266,6 +1276,7 @@
                   bgColor: state.bgColor,
                   accentColor: state.accentColor,
                   pixelGridEnabled: state.pixelGridEnabled,
+                  hueLabelsEnabled: state.hueLabelsEnabled,
                   pixelGridColor: state.pixelGridColor,
                   pixelGridThick: state.pixelGridThick,
                   gridEnabled: state.gridEnabled,
@@ -1327,6 +1338,9 @@
             if (data.accentColor) state.accentColor = normalizeHex(data.accentColor);
             if (typeof data.pixelGridEnabled === "boolean") {
               state.pixelGridEnabled = data.pixelGridEnabled;
+            }
+            if (typeof data.hueLabelsEnabled === "boolean") {
+              state.hueLabelsEnabled = data.hueLabelsEnabled;
             }
             if (data.pixelGridColor) {
               state.pixelGridColor = normalizeHex(data.pixelGridColor);
@@ -1417,6 +1431,7 @@
           setSwatchEl(accentColorInput, state.accentColor);
           canvas.style.background = state.bgColor;
           pixelGridEnabledInput.checked = state.pixelGridEnabled;
+          hueLabelsEnabledInput.checked = state.hueLabelsEnabled;
           setSwatchEl(pixelGridColorInput, state.pixelGridColor);
           pixelGridThickInput.value = String(state.pixelGridThick);
           gridEnabledInput.checked = state.gridEnabled;
@@ -2888,6 +2903,37 @@
           ctx.stroke();
         }
 
+        // Per-colour label: hue in degrees ("–" for greys) and a legible ink.
+        const hueLabelCache = new Map();
+        function hueLabelFor(color) {
+          let label = hueLabelCache.get(color);
+          if (!label) {
+            const { r, g, b } = hexToRgb(color);
+            const hsv = rgbToHsv(r, g, b);
+            const luma = (0.299 * r + 0.587 * g + 0.114 * b) / 255;
+            label = {
+              text: hsv.s === 0 ? "–" : String(Math.round(hsv.h) % 360),
+              ink: luma > 0.55 ? "rgba(0,0,0,0.75)" : "rgba(255,255,255,0.85)",
+            };
+            hueLabelCache.set(color, label);
+          }
+          return label;
+        }
+
+        function drawHueLabels(x0, y0, x1, y1, s) {
+          if (s < 16) return; // too small to read
+          ctx.font = Math.min(14, Math.floor(s * 0.38)) + "px ui-monospace, Menlo, monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "middle";
+          for (const [k, color] of pixels) {
+            const p = parseKey(k);
+            if (p.x < x0 || p.x > x1 || p.y < y0 || p.y > y1) continue;
+            const label = hueLabelFor(color);
+            ctx.fillStyle = label.ink;
+            ctx.fillText(label.text, state.camX + (p.x + 0.5) * s, state.camY + (p.y + 0.5) * s);
+          }
+        }
+
         function draw() {
           const w = window.innerWidth;
           const h = window.innerHeight;
@@ -2923,6 +2969,8 @@
             ctx.fillStyle = color;
             ctx.fillRect(state.camX + p.x * s, state.camY + p.y * s, s, s);
           }
+
+          if (state.hueLabelsEnabled) drawHueLabels(x0, y0, x1, y1, s);
 
           if (state.lining && state.lineStart && state.lineEnd) {
             const a = state.lineStart;
@@ -4041,6 +4089,11 @@
           });
         });
 
+        hueLabelsEnabledInput.addEventListener("change", () => {
+          state.hueLabelsEnabled = hueLabelsEnabledInput.checked;
+          saveSettings();
+          state.needsDraw = true;
+        });
         pixelGridEnabledInput.addEventListener("change", () => {
           state.pixelGridEnabled = pixelGridEnabledInput.checked;
           saveSettings();
