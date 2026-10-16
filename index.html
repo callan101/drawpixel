@@ -1970,6 +1970,20 @@
             syncPickerUi(false);
           }
         });
+        // Capture phase: the fields stop propagation of their own keys.
+        colorPopover.addEventListener(
+          "keydown",
+          (e) => {
+            if (e.key !== "Escape") return;
+            e.preventDefault();
+            e.stopPropagation();
+            // Drop a half-typed hex rather than applying it on blur.
+            if (document.activeElement === cpHex) colorPicker.skipNextHexChange = true;
+            closeColorPicker();
+          },
+          true
+        );
+
         cpHex.addEventListener("keydown", (e) => {
           if (e.key !== "Enter") return;
           e.preventDefault();
