@@ -3,3 +3,5 @@ image*.png
 exports-meta.json
 node_modules/
 www/
+build/
+.DS_Store

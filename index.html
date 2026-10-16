@@ -254,23 +254,6 @@
         touch-action: none;
       }
 
-      .hud-squeeze {
-        top: calc(16px + env(safe-area-inset-top));
-        left: 50%;
-        transform: translateX(-50%);
-        padding: 6px;
-      }
-
-      .hud-squeeze .tool {
-        width: auto;
-        height: 36px;
-        padding: 0 14px;
-        font-size: 11px;
-        letter-spacing: 0.08em;
-        text-transform: uppercase;
-        touch-action: none;
-        -webkit-touch-callout: none;
-      }
 
       /* Catches every pointer while open so nothing underneath reacts. */
       .quick-menu {
@@ -396,6 +379,11 @@
       .palette-ghost.discard {
         opacity: 0.4;
         transform: scale(0.8) rotate(-8deg);
+      }
+
+      .palette-slot.copied {
+        outline: 2px solid #3a9d5d;
+        outline-offset: 1px;
       }
 
       .palette-slot.active {
@@ -716,7 +704,7 @@
         <button type="button" class="tool" id="btn-download" disabled title="Download selection PNG" aria-label="Download PNG">
           <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M4 15l4-4 3 3 3-4 6 5"/></svg>
         </button>
-        <button type="button" class="tool" id="btn-publish" disabled title="Publish selection PNG" aria-label="Publish link">
+        <button type="button" class="tool" id="btn-publish" disabled title="Copy selection as image" aria-label="Copy image">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6.1.4l2-2a4 4 0 0 0-5.7-5.7l-1.1 1.1"/><path d="M14 11a4 4 0 0 0-6.1-.4l-2 2a4 4 0 0 0 5.7 5.7l1.1-1.1"/></svg>
         </button>
       </div>
@@ -810,9 +798,6 @@
       </span>
     </div>
 
-    <div class="hud hud-squeeze">
-      <button type="button" class="tool" id="btn-squeeze" title="Hold to open the quick menu (stand-in for Pencil squeeze; right-click with a mouse)" aria-label="Quick menu (hold)">squeeze</button>
-    </div>
     <div class="quick-menu" id="quick-menu" hidden></div>
 
 
@@ -1683,9 +1668,12 @@
           const existing = state.palette.findIndex((c) => c === hex);
           if (existing >= 0) {
             selectPaletteIndex(existing);
+          } else if (state.palette.length < MAX_PALETTE_SIZE) {
+            addPaletteSlot(hex);
           } else {
             setSlotColor(state.paletteIndex, hex);
           }
+          setTool("brush");
         }
 
         function syncPaletteActive() {
@@ -2079,6 +2067,16 @@
           buildPalette();
         }
 
+        async function copySwatchColor(slot, hex) {
+          try {
+            await navigator.clipboard.writeText(hex);
+          } catch (_) {
+            return;
+          }
+          slot.classList.add("copied");
+          setTimeout(() => slot.classList.remove("copied"), 700);
+        }
+
         function buildPalette() {
           paletteEl.innerHTML = "";
           state.palette.forEach((color, i) => {
@@ -2096,7 +2094,13 @@
             idx.textContent = String(i + 1);
             slot.appendChild(idx);
 
-            slot.addEventListener("pointerdown", (e) => paletteDragStart(slot, i, e));
+            slot.addEventListener("pointerdown", (e) => {
+              if (e.button === 0) paletteDragStart(slot, i, e);
+            });
+            slot.addEventListener("contextmenu", (e) => {
+              e.preventDefault();
+              copySwatchColor(slot, state.palette[i]);
+            });
 
             // Pointer taps are handled on pointerup (iOS drops the click for
             // Pencil taps that move slightly); this only catches keyboard activation.
@@ -2184,15 +2188,15 @@
             publishBtn.setAttribute("aria-label", message);
           } else if (state.lastPublishSelection && !(state.selection || state.float)) {
             publishBtn.title =
-              "Publish last area (" +
+              "Copy last area (" +
               state.lastPublishSelection.w +
               "×" +
               state.lastPublishSelection.h +
               ")";
-            publishBtn.setAttribute("aria-label", "Publish last area");
+            publishBtn.setAttribute("aria-label", "Copy last area");
           } else {
-            publishBtn.title = "Publish selection PNG";
-            publishBtn.setAttribute("aria-label", "Publish link");
+            publishBtn.title = "Copy selection as image";
+            publishBtn.setAttribute("aria-label", "Copy image");
           }
         }
 
@@ -2473,41 +2477,26 @@
             setExportMessage("Select an area first");
             return;
           }
-          setExportMessage("Publishing…");
+          setExportMessage("Copying…");
           publishBtn.disabled = true;
           try {
             // Explicit rect: last-publish fallback does not create a selection.
-            const blob = await buildSelectionPngBlob(rect);
-            if (!blob) {
-              setExportMessage("Nothing to export");
-              return;
-            }
-            const res = await fetch("/api/export", {
-              method: "POST",
-              headers: { "Content-Type": "image/png" },
-              body: blob,
+            // Hand ClipboardItem a promise so Safari keeps the user gesture.
+            const blobPromise = buildSelectionPngBlob(rect).then((blob) => {
+              if (!blob) throw new Error("empty");
+              return blob;
             });
-            const data = await res.json().catch(() => ({}));
-            if (!res.ok) {
-              setExportMessage(data.error || "Publish failed");
-              return;
-            }
+            await navigator.clipboard.write([new ClipboardItem({ "image/png": blobPromise })]);
             state.lastPublishSelection = cloneRect(rect);
             saveSettings();
-            const abs =
-              data.absoluteUrl ||
-              "https://draw.63616c6c616e313031.com/" + (data.name || "");
-            showExportLink(abs);
             setExportMessage("");
-            try {
-              await navigator.clipboard.writeText(abs);
-              exportCopied.title = "Public link copied";
-              exportCopied.hidden = false;
-            } catch (_) {
-              exportCopied.hidden = true;
-            }
+            exportFeedback.hidden = false;
+            exportLink.hidden = true;
+            exportCopied.title = "Image copied";
+            exportCopied.setAttribute("aria-label", "Image copied");
+            exportCopied.hidden = false;
           } catch (err) {
-            setExportMessage("Publish failed");
+            setExportMessage(err && err.message === "empty" ? "Nothing to export" : "Copy failed");
           } finally {
             syncActionButtons();
           }
@@ -2532,9 +2521,8 @@
           const title = publishBtn.title || "";
           if (
             !title ||
-            title === "Publish selection PNG" ||
-            title === "Publish link" ||
-            title.startsWith("Publish last area")
+            title === "Copy selection as image" ||
+            title.startsWith("Copy last area")
           ) {
             setExportMessage("");
           }
@@ -3372,7 +3360,6 @@
         const SVG_NS = "http://www.w3.org/2000/svg";
 
         const quickMenuEl = document.getElementById("quick-menu");
-        const squeezeBtn = document.getElementById("btn-squeeze");
         const quickMenu = {
           open: false,
           pointerId: null, // pointer holding the menu open (hold mode)
@@ -3553,7 +3540,6 @@
           quickMenu.openedAt = performance.now();
           quickMenu.entered = false;
           quickMenuEl.hidden = false;
-          squeezeBtn.classList.add("active");
           setQuickMenuHot(null);
           state.needsDraw = true;
         }
@@ -3716,7 +3702,6 @@
           quickMenu.label = null;
           quickMenuEl.hidden = true;
           quickMenuEl.innerHTML = "";
-          squeezeBtn.classList.remove("active");
           state.needsDraw = true;
           if (apply && hot && hot.apply) hot.apply();
         }
@@ -3727,22 +3712,11 @@
           quickMenu.tapId = null;
         }
 
-        squeezeBtn.addEventListener("pointerdown", (e) => {
-          e.preventDefault();
-          if (quickMenu.open) {
-            closeQuickMenu(false); // tapping squeeze again closes a sticky menu
-            return;
-          }
-          capturePointer(squeezeBtn, e.pointerId);
-          openQuickMenu(e.pointerId);
-        });
-        squeezeBtn.addEventListener("contextmenu", (e) => e.preventDefault());
         quickMenuEl.addEventListener("contextmenu", (e) => e.preventDefault());
 
         // Sticky mode: any pointer (Pencil, finger, mouse) taps to pick.
         window.addEventListener("pointerdown", (e) => {
           if (!quickMenu.open || !quickMenu.sticky || quickMenu.tapId != null) return;
-          if (e.target === squeezeBtn) return;
           quickMenu.tapId = e.pointerId;
           updateQuickMenuHot(e.clientX, e.clientY);
         });
@@ -3796,8 +3770,6 @@
         function nativeSqueeze(ev) {
           const pt =
             ev && Number.isFinite(ev.x) && Number.isFinite(ev.y) ? { x: ev.x, y: ev.y } : null;
-          // Real squeeze works: the on-screen stand-in is no longer needed.
-          squeezeBtn.parentElement.style.display = "none";
           if (ev.phase === "began") {
             if (quickMenu.open) {
               closeQuickMenu(false); // squeezing again closes a sticky menu
@@ -4146,9 +4118,6 @@
         canvas.addEventListener("auxclick", (e) => e.preventDefault());
         canvas.addEventListener("contextmenu", (e) => e.preventDefault());
         window.addEventListener("resize", resize);
-
-        // Publishing needs server.js, which the app doesn't have.
-        if (native) publishBtn.style.display = "none";
 
         function startApp() {
           applySchemeCanvasDefaults();
