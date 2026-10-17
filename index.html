@@ -169,6 +169,13 @@
         text-transform: uppercase;
       }
 
+      .tool.tool-text {
+        font: inherit;
+        font-size: 12px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+      }
+
       .tool {
         display: inline-flex;
         align-items: center;
@@ -696,6 +703,8 @@
         <button type="button" class="tool" id="tool-eyedropper" aria-pressed="false" title="Eyedropper (I)" aria-label="Eyedropper">
           <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16.5 3.5l4 4L12 16l-4.5 1.5L9 13 16.5 3.5z"/><path d="M13.5 6.5l4 4"/><path d="M7.5 16.5L5 19"/></svg>
         </button>
+        <button type="button" class="tool tool-text" id="tool-satsync" aria-pressed="false" title="Saturation Sync" aria-label="Saturation Sync">SS</button>
+        <button type="button" class="tool tool-text" id="tool-huesync" aria-pressed="false" title="Hue Sync" aria-label="Hue Sync">HS</button>
       </div>
       <div class="tool-group icons">
         <button type="button" class="tool" id="btn-snap" aria-pressed="false" title="Snap: lines to 45°, selections to grid (or hold Shift)" aria-label="Snap">
@@ -931,6 +940,8 @@
         const lineBtn = document.getElementById("tool-line");
         const selectBtn = document.getElementById("tool-select");
         const eyedropperBtn = document.getElementById("tool-eyedropper");
+        const satSyncBtn = document.getElementById("tool-satsync");
+        const hueSyncBtn = document.getElementById("tool-huesync");
         const sizeControls = document.getElementById("size-controls");
         const undoBtn = document.getElementById("btn-undo");
         const redoBtn = document.getElementById("btn-redo");
@@ -1020,6 +1031,9 @@
           accentColor: "#1a1a1a",
           pixelGridEnabled: true,
           hueLabelsEnabled: false,
+          syncSat: null, // Saturation Sync target, 0–1
+          syncHue: null, // Hue Sync target, degrees
+          syncing: false,
           satLabelsEnabled: false,
           pixelGridColor: "#d0d0d0",
           pixelGridThick: 1,
@@ -1283,6 +1297,8 @@
                   accentColor: state.accentColor,
                   pixelGridEnabled: state.pixelGridEnabled,
                   hueLabelsEnabled: state.hueLabelsEnabled,
+                  syncSat: state.syncSat,
+                  syncHue: state.syncHue,
                   satLabelsEnabled: state.satLabelsEnabled,
                   pixelGridColor: state.pixelGridColor,
                   pixelGridThick: state.pixelGridThick,
@@ -1346,6 +1362,8 @@
             if (typeof data.pixelGridEnabled === "boolean") {
               state.pixelGridEnabled = data.pixelGridEnabled;
             }
+            if (Number.isFinite(data.syncSat)) state.syncSat = Math.min(1, Math.max(0, data.syncSat));
+            if (Number.isFinite(data.syncHue)) state.syncHue = ((data.syncHue % 360) + 360) % 360;
             if (typeof data.hueLabelsEnabled === "boolean") {
               state.hueLabelsEnabled = data.hueLabelsEnabled;
             }
@@ -1376,7 +1394,9 @@
               data.tool === "eraser" ||
               data.tool === "line" ||
               data.tool === "select" ||
-              data.tool === "eyedropper"
+              data.tool === "eyedropper" ||
+              data.tool === "satsync" ||
+              data.tool === "huesync"
             ) {
               state.tool = data.tool;
             }
@@ -1604,6 +1624,61 @@
           state.needsDraw = true;
         }
 
+        function syncSyncToolUi() {
+          satSyncBtn.classList.toggle("active", state.tool === "satsync");
+          hueSyncBtn.classList.toggle("active", state.tool === "huesync");
+          satSyncBtn.setAttribute("aria-pressed", state.tool === "satsync" ? "true" : "false");
+          hueSyncBtn.setAttribute("aria-pressed", state.tool === "huesync" ? "true" : "false");
+          satSyncBtn.title =
+            "Saturation Sync" +
+            (state.syncSat == null ? "" : " · " + Math.round(state.syncSat * 100) + "%") +
+            " · shift-click a pixel to sample · - / = adjust";
+          hueSyncBtn.title =
+            "Hue Sync" +
+            (state.syncHue == null ? "" : " · " + Math.round(state.syncHue) + "°") +
+            " · shift-click a pixel to sample · - / = adjust";
+        }
+
+        // Saturation / Hue Sync: sample a target from a pixel, then apply it
+        // to other pixels keeping their other HSV components.
+        function pixelHsv(x, y) {
+          const color = pixels.get(key(x, y));
+          if (!color) return null;
+          const { r, g, b } = hexToRgb(color);
+          return rgbToHsv(r, g, b);
+        }
+
+        function sampleSyncAt(x, y) {
+          const hsv = pixelHsv(x, y);
+          if (!hsv) return;
+          if (state.tool === "satsync") state.syncSat = hsv.s;
+          else state.syncHue = hsv.h;
+          syncSyncToolUi();
+          saveSettings();
+        }
+
+        function applySyncAt(x, y) {
+          const hsv = pixelHsv(x, y);
+          if (!hsv) return;
+          if (state.tool === "satsync") hsv.s = state.syncSat;
+          else hsv.h = state.syncHue;
+          setPixel(x, y, hsvToHex(hsv.h, hsv.s, hsv.v));
+        }
+
+        // `-` / `=`: nudge the hovered pixel's saturation (5%) or hue (5°);
+        // hold Shift for steps of 1.
+        function nudgeSyncAt(x, y, dir, fine) {
+          const hsv = pixelHsv(x, y);
+          if (!hsv) return;
+          pushUndo();
+          if (state.tool === "satsync") {
+            hsv.s = Math.min(1, Math.max(0, hsv.s + (dir * (fine ? 1 : 5)) / 100));
+          } else {
+            hsv.h = (((hsv.h + dir * (fine ? 1 : 5)) % 360) + 360) % 360;
+          }
+          setPixel(x, y, hsvToHex(hsv.h, hsv.s, hsv.v));
+        }
+
         function setTool(tool) {
           if (tool !== state.tool) state.prevTool = state.tool;
           if (state.float && tool !== "select") {
@@ -1624,6 +1699,7 @@
           lineBtn.setAttribute("aria-pressed", tool === "line" ? "true" : "false");
           selectBtn.setAttribute("aria-pressed", tool === "select" ? "true" : "false");
           eyedropperBtn.setAttribute("aria-pressed", tool === "eyedropper" ? "true" : "false");
+          syncSyncToolUi();
           if (tool !== "select") {
             state.selection = null;
             state.selecting = false;
@@ -3275,6 +3351,19 @@
             return;
           }
 
+          if (state.tool === "satsync" || state.tool === "huesync") {
+            const target = state.tool === "satsync" ? state.syncSat : state.syncHue;
+            if (e.shiftKey || target == null) {
+              sampleSyncAt(world.x, world.y);
+              return;
+            }
+            pushUndo();
+            if (state.float) commitFloat();
+            state.syncing = true;
+            applySyncAt(world.x, world.y);
+            return;
+          }
+
           if (state.tool === "brush" || state.tool === "eraser") {
             pushUndo();
             if (state.float) commitFloat();
@@ -3367,6 +3456,11 @@
             return;
           }
 
+          if (state.syncing) {
+            applySyncAt(cell.x, cell.y);
+            return;
+          }
+
           if (state.moving && state.float && state.moveGrab) {
             state.float.x = cell.x - state.moveGrab.dx;
             state.float.y = cell.y - state.moveGrab.dy;
@@ -3427,6 +3521,7 @@
           }
           if (e.pointerId !== state.penId) return;
           state.penId = null;
+          state.syncing = false;
           clearHoldTimer();
           {
             if (state.lining && state.lineStart && state.lineEnd) {
@@ -4066,9 +4161,21 @@
             setTool("eyedropper");
             return;
           }
+          if (
+            !mod &&
+            (state.tool === "satsync" || state.tool === "huesync") &&
+            (e.key === "-" || e.key === "_" || e.key === "=" || e.key === "+")
+          ) {
+            e.preventDefault();
+            if (state.hoverVisible) {
+              const dir = e.key === "-" || e.key === "_" ? -1 : 1;
+              nudgeSyncAt(state.hover.x, state.hover.y, dir, e.shiftKey);
+            }
+            return;
+          }
           if (!mod && e.key === "Tab") {
             e.preventDefault();
-            const tools = ["brush", "eraser", "line", "select", "eyedropper"];
+            const tools = ["brush", "eraser", "line", "select", "eyedropper", "satsync", "huesync"];
             const idx = tools.indexOf(state.tool);
             const next = e.shiftKey
               ? tools[(idx <= 0 ? tools.length : idx) - 1]
@@ -4212,6 +4319,8 @@
         lineBtn.addEventListener("click", () => setTool("line"));
         selectBtn.addEventListener("click", () => setTool("select"));
         eyedropperBtn.addEventListener("click", () => setTool("eyedropper"));
+        satSyncBtn.addEventListener("click", () => setTool("satsync"));
+        hueSyncBtn.addEventListener("click", () => setTool("huesync"));
         undoBtn.addEventListener("click", () => undo());
         redoBtn.addEventListener("click", () => redo());
         snapBtn.addEventListener("click", () => setSnap(!state.snap));
@@ -4283,6 +4392,7 @@
           lineBtn.setAttribute("aria-pressed", state.tool === "line" ? "true" : "false");
           selectBtn.setAttribute("aria-pressed", state.tool === "select" ? "true" : "false");
           eyedropperBtn.setAttribute("aria-pressed", state.tool === "eyedropper" ? "true" : "false");
+          syncSyncToolUi();
           canvas.style.cursor = state.tool === "eyedropper" ? "copy" : "crosshair";
           resize();
           if (!hasSavedCamera) {
