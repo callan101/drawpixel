@@ -166,18 +166,17 @@
       }
 
       /* Snapped edges: no border, square corners, and no handles on that side. */
-      .hud.snap-l { border-left-color: transparent; border-top-left-radius: 0; border-bottom-left-radius: 0; }
-      .hud.snap-r { border-right-color: transparent; border-top-right-radius: 0; border-bottom-right-radius: 0; }
-      .hud.snap-t { border-top-color: transparent; border-top-left-radius: 0; border-top-right-radius: 0; }
-      .hud.snap-b { border-bottom-color: transparent; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
-      /* A corner hides once both of its edges are snapped (it's in the
-         screen corner); otherwise it stays so the panel can still be resized. */
+      .hud.snap-l { border-left-width: 0; border-top-left-radius: 0; border-bottom-left-radius: 0; }
+      .hud.snap-r { border-right-width: 0; border-top-right-radius: 0; border-bottom-right-radius: 0; }
+      .hud.snap-t { border-top-width: 0; border-top-left-radius: 0; border-top-right-radius: 0; }
+      .hud.snap-b { border-bottom-width: 0; border-bottom-left-radius: 0; border-bottom-right-radius: 0; }
+      /* Snapped sides lose their grip and every corner touching them. */
       .hud.snap-t .hud-grip:not(.bottom):not(.left):not(.right),
       .hud.snap-b .hud-grip.bottom,
-      .hud.snap-t.snap-l .hud-resize[data-corner="tl"],
-      .hud.snap-t.snap-r .hud-resize[data-corner="tr"],
-      .hud.snap-b.snap-l .hud-resize[data-corner="bl"],
-      .hud.snap-b.snap-r .hud-resize[data-corner="br"] {
+      .hud.snap-l .hud-resize[data-corner$="l"],
+      .hud.snap-r .hud-resize[data-corner$="r"],
+      .hud.snap-t .hud-resize[data-corner^="t"],
+      .hud.snap-b .hud-resize[data-corner^="b"] {
         display: none;
       }
 
@@ -912,20 +911,66 @@
         pointer-events: none;
       }
 
-      /* Palettes button: a mini 2×2 of the active palette's first colours. */
+      /* Palettes button: a mini 2×2 of the active palette's first colors. */
       .palette-slot.palette-menu {
         display: grid;
         grid-template: 1fr 1fr / 1fr 1fr;
         gap: 0;
         padding: 0;
         background: var(--line);
-        border-color: var(--ink);
       }
 
       .palette-menu span {
         border-radius: 0;
         min-width: 0;
         min-height: 0;
+      }
+
+      .export-menu {
+        z-index: 45;
+        flex-direction: column;
+        gap: 4px;
+        min-width: 200px;
+        padding: 6px;
+        box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
+      }
+
+      .export-menu[hidden] {
+        display: none;
+      }
+
+      .export-item {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        height: 40px;
+        margin: 0;
+        padding: 0 12px;
+        border: 1px solid var(--line);
+        border-radius: 2px;
+        background: var(--bg0);
+        color: var(--ink);
+        font: inherit;
+        font-size: 12px;
+        text-align: left;
+        cursor: pointer;
+      }
+
+      .export-item:disabled {
+        opacity: 0.4;
+        cursor: default;
+      }
+
+      .export-item svg {
+        flex: none;
+        width: 20px;
+        height: 20px;
+        stroke: currentColor;
+        fill: none;
+        stroke-width: 1.6;
+        stroke-linecap: round;
+        stroke-linejoin: round;
       }
 
       .palettes-dialog {
@@ -1333,9 +1378,6 @@
           </button>
         </div>
         <div class="tool-group icons">
-          <button type="button" class="tool" id="btn-snap" aria-pressed="false" title="Snap: lines to 45°, selections to grid (or hold Shift)" aria-label="Snap">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 3v9a6 6 0 0 0 12 0V3h-4v9a2 2 0 0 1-4 0V3z"/><path d="M6 7h4M14 7h4"/></svg>
-          </button>
         </div>
         <div class="tool-group icons">
           <button type="button" class="tool" id="btn-undo" disabled title="Undo (⌘/Ctrl+Z · two-finger tap)" aria-label="Undo">
@@ -1362,17 +1404,8 @@
             <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V5"/><path d="M8 9l4-4 4 4"/><rect x="5" y="16" width="14" height="5" rx="1"/></svg>
           </button>
           <input id="import-file" type="file" accept="image/*,.json,application/json" hidden />
-          <button type="button" class="tool" id="btn-download" disabled title="Download selection PNG" aria-label="Download PNG">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M4 15l4-4 3 3 3-4 6 5"/></svg>
-          </button>
-          <button type="button" class="tool" id="btn-publish" disabled title="Copy selection as image" aria-label="Copy image">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6.1.4l2-2a4 4 0 0 0-5.7-5.7l-1.1 1.1"/><path d="M14 11a4 4 0 0 0-6.1-.4l-2 2a4 4 0 0 0 5.7 5.7l1.1-1.1"/></svg>
-          </button>
-          <button type="button" class="tool" id="btn-copy-map" title="Copy map (.map.json)" aria-label="Copy map">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
-          </button>
-          <button type="button" class="tool" id="btn-download-map" title="Download map (.map.json)" aria-label="Download map">
-            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v8"/><path d="M3 6v14l6-2 4 1.3"/><path d="M9 4v14"/><path d="M18 14v7M15 18l3 3 3-3"/></svg>
+          <button type="button" class="tool" id="btn-export" title="Export: tap to copy the map · hold for more" aria-label="Export" aria-haspopup="menu">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 15V4"/><path d="M8 8l4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>
           </button>
         </div>
         <div class="tool-group icons" id="export-feedback" hidden>
@@ -1386,6 +1419,25 @@
       </div>
       <div class="hud-grip bottom" data-hud="tools" title="Drag to move · double-tap to reset" aria-label="Move toolbar"></div>
       <div class="hud-resize" data-corner="br" data-hud="tools" title="Drag to resize · double-tap to reset" aria-label="Resize toolbar"></div>
+    </div>
+
+    <div class="hud export-menu" id="export-menu" role="menu" aria-label="Export" hidden>
+      <button type="button" class="export-item" role="menuitem" id="btn-copy-map" title="Copy map (.map.json)" aria-label="Copy map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+        <span>Copy map</span>
+      </button>
+      <button type="button" class="export-item" role="menuitem" id="btn-download-map" title="Download map (.map.json)" aria-label="Download map">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6l6-2 6 2 6-2v8"/><path d="M3 6v14l6-2 4 1.3"/><path d="M9 4v14"/><path d="M18 14v7M15 18l3 3 3-3"/></svg>
+        <span>Download map</span>
+      </button>
+      <button type="button" class="export-item" role="menuitem" id="btn-publish" disabled title="Copy selection as image" aria-label="Copy image">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M10 13a4 4 0 0 0 6.1.4l2-2a4 4 0 0 0-5.7-5.7l-1.1 1.1"/><path d="M14 11a4 4 0 0 0-6.1-.4l-2 2a4 4 0 0 0 5.7 5.7l1.1-1.1"/></svg>
+        <span>Copy image</span>
+      </button>
+      <button type="button" class="export-item" role="menuitem" id="btn-download" disabled title="Download selection PNG" aria-label="Download PNG">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="6" width="16" height="12" rx="1.5"/><path d="M4 15l4-4 3 3 3-4 6 5"/></svg>
+        <span>Download PNG</span>
+      </button>
     </div>
 
     <div class="hud hud-settings" id="settings-panel" role="dialog" aria-label="Settings" hidden>
@@ -1403,9 +1455,9 @@
             </label>
             <div class="settings-row" id="scheme-row" hidden>
               <label for="edit-scheme">edit</label>
-              <select id="edit-scheme" aria-label="Which appearance's colours to edit">
-                <option value="light">light mode colours</option>
-                <option value="dark">dark mode colours</option>
+              <select id="edit-scheme" aria-label="Which appearance's colors to edit">
+                <option value="light">light mode colors</option>
+                <option value="dark">dark mode colors</option>
               </select>
             </div>
             <div class="settings-row">
@@ -1457,6 +1509,16 @@
           </div>
         </details>
 
+        <details class="settings-section" data-section="panels" open>
+          <summary class="panel-label">Panels</summary>
+          <div class="settings-block">
+            <div class="settings-row">
+              <label for="hud-snap" title="Panels snap flush to the screen edge when this close (0 = off)">snap px</label>
+              <input id="hud-snap" type="number" inputmode="numeric" min="0" max="80" step="1" value="16" />
+            </div>
+          </div>
+        </details>
+
         <details class="settings-section" data-section="eyedropper" open>
           <summary class="panel-label" id="settings-eyedropper">Eyedropper</summary>
           <div class="settings-block">
@@ -1494,7 +1556,7 @@
               <input id="qm-tool-count" type="number" inputmode="numeric" min="1" max="7" step="1" value="6" />
             </div>
             <div class="settings-row">
-              <label for="qm-color-count" title="Most swatches shown in the colour ring">colours</label>
+              <label for="qm-color-count" title="Most swatches shown in the color ring">colors</label>
               <input id="qm-color-count" type="number" inputmode="numeric" min="1" max="32" step="1" value="32" />
             </div>
             <ol class="qm-order" id="qm-order" aria-label="Quick menu tool order"></ol>
@@ -1620,7 +1682,7 @@
       </div>
       <div class="palettes-list" id="palettes-list"></div>
       <div class="palettes-foot">
-        <span class="palettes-hint">Tap a palette to use it · drag a colour onto another palette to move it</span>
+        <span class="palettes-hint">Tap a palette to use it · drag a color onto another palette to move it</span>
         <button type="button" class="settings-btn" id="palette-new">new</button>
         <button type="button" class="settings-btn" id="palette-dup">duplicate</button>
       </div>
@@ -1707,7 +1769,6 @@
         const BRUSH_MAX = 32;
         const undoBtn = document.getElementById("btn-undo");
         const redoBtn = document.getElementById("btn-redo");
-        const snapBtn = document.getElementById("btn-snap");
         const deleteBtn = document.getElementById("btn-delete");
         const brushSizeInput = document.getElementById("brush-size");
         const brushSizeVal = document.getElementById("brush-size-val");
@@ -1755,7 +1816,7 @@
         const MIN_SCALE = 0.25;
         const MAX_SCALE = 96;
 
-        // Canvas colours per system appearance (used when "match system" is on).
+        // Canvas colors per system appearance (used when "match system" is on).
         const SCHEME_DEFAULTS = {
           light: { bgColor: "#f2f2f2", accentColor: "#1a1a1a", pixelGridColor: "#d0d0d0", gridColor: "#b0b0b0" },
           dark: { bgColor: "#141414", accentColor: "#ececec", pixelGridColor: "#2a2a2a", gridColor: "#3a3a3a" },
@@ -1782,6 +1843,7 @@
           lineStart: null,
           lineEnd: null,
           shiftDown: false,
+          snapTouches: new Set(), // fingers resting while the Pencil/mouse draws
           snap: false,
           panning: false,
           selecting: false,
@@ -1810,7 +1872,8 @@
           accentColor: "#1a1a1a",
           pixelGridEnabled: true,
           hueLabelsEnabled: false,
-          // All palettes; the active one's colours are also state.palette /
+          hudSnap: 16, // panels snap to the screen edge within this many px
+          // All palettes; the active one's colors are also state.palette /
           // state.paletteIndex (kept in sync by syncActivePalette).
           palettes: [],
           activePalette: 0,
@@ -1818,7 +1881,7 @@
           qmScale: 1, // quick menu size
           qmToolOrder: ["brush", "line", "flex", "eyedropper", "link", "eraser", "select"],
           qmToolCount: 6, // first N of qmToolOrder are shown
-          qmColorCount: 32, // most swatches in the colour ring
+          qmColorCount: 32, // most swatches in the color ring
           hudLayout: {}, // tools / palette: { x, y, w, h } (null = default)
           loupeZoom: 3, // magnifier zoom relative to the current view
           loupeSize: 112, // magnifier diameter, px
@@ -1881,7 +1944,7 @@
           Object.assign(state, SCHEME_DEFAULTS[currentScheme()]);
         }
 
-        // With "match system" on, the live canvas colours follow the system
+        // With "match system" on, the live canvas colors follow the system
         // appearance; otherwise they're the single fixed set.
         function applySystemScheme() {
           if (!state.followSystem) return;
@@ -2031,7 +2094,7 @@
         }
 
         // Palette is only captured for palette edits, so undoing a stroke
-        // never reverts colour changes made since.
+        // never reverts color changes made since.
         function captureHistory(withPalette) {
           const snap = {
             pixels: new Map(pixels),
@@ -2128,6 +2191,7 @@
                   accentColor: state.accentColor,
                   pixelGridEnabled: state.pixelGridEnabled,
                   hueLabelsEnabled: state.hueLabelsEnabled,
+                  hudSnap: state.hudSnap,
                   settingsCollapsed: state.settingsCollapsed,
                   qmScale: state.qmScale,
                   qmToolOrder: state.qmToolOrder,
@@ -2157,7 +2221,6 @@
                   gridThick: state.gridThick,
                   tool: state.tool,
                   brushSize: state.brushSize,
-                  snap: state.snap,
                   scale: state.scale,
                   camX: state.camX,
                   camY: state.camY,
@@ -2285,6 +2348,7 @@
             if (Array.isArray(data.settingsCollapsed)) {
               state.settingsCollapsed = data.settingsCollapsed.filter((k) => typeof k === "string");
             }
+            if (data.hudSnap != null) state.hudSnap = clampInt(data.hudSnap, 0, 80, 16);
             if (typeof data.hueLabelsEnabled === "boolean") {
               state.hueLabelsEnabled = data.hueLabelsEnabled;
             }
@@ -2323,7 +2387,6 @@
             if (data.brushSize != null) {
               state.brushSize = clampInt(data.brushSize, 1, 32, 1);
             }
-            if (typeof data.snap === "boolean") state.snap = data.snap;
             if (Number.isFinite(data.scale)) {
               state.scale = Math.max(MIN_SCALE, Math.min(MAX_SCALE, data.scale));
             }
@@ -2385,6 +2448,7 @@
           canvas.style.background = state.bgColor;
           pixelGridEnabledInput.checked = state.pixelGridEnabled;
           hueLabelsEnabledInput.checked = state.hueLabelsEnabled;
+          document.getElementById("hud-snap").value = String(state.hudSnap);
           qmScaleInput.value = String(Math.round(state.qmScale * 100));
           qmToolCountInput.value = String(state.qmToolCount);
           qmColorCountInput.value = String(state.qmColorCount);
@@ -2472,7 +2536,7 @@
         }
 
         function constrainLineEnd(start, end) {
-          if (!(state.shiftDown || state.snap) || !start) return end;
+          if (!snapHeld() || !start) return end;
           const dx = end.x - start.x;
           const dy = end.y - start.y;
           const adx = Math.abs(dx);
@@ -2603,7 +2667,7 @@
           saveSettings();
         }
 
-        // Any change of the drawing colour switches to the brush.
+        // Any change of the drawing color switches to the brush.
         function useBrush() {
           if (state.tool !== "brush") setTool("brush");
         }
@@ -2693,11 +2757,11 @@
           }
           const painted = pixels.get(key(wx, wy));
           if (painted) return normalizeHex(painted) || painted;
-          return normalizeHex(state.bgColor) || state.bgColor;
+          return null; // empty canvas: nothing to pick
         }
 
         // Eyedropper press-and-hold: a loupe shows the pixels under the pointer,
-        // ringed with the colour that releasing will pick. It appears after the
+        // ringed with the color that releasing will pick. It appears after the
         // hold time (Settings › Eyedropper); a finger has to hold still for it
         // (or it pans), while moving a Pencil/mouse shows it straight away.
 
@@ -2759,7 +2823,7 @@
           ctx.clip();
           for (let y = gy0; y <= gy1; y++) {
             for (let x = gx0; x <= gx1; x++) {
-              ctx.fillStyle = sampleColorAt(x, y);
+              ctx.fillStyle = sampleColorAt(x, y) || state.bgColor;
               ctx.fillRect(toX(x), toY(y), cellPx + 0.5, cellPx + 0.5);
             }
           }
@@ -2788,7 +2852,7 @@
           ctx.strokeRect(ox, oy, cellPx, cellPx);
           ctx.restore();
 
-          // Ring in the colour that will be picked, with thin halos so it reads on any background.
+          // Ring in the color that will be picked, with thin halos so it reads on any background.
           ctx.save();
           ctx.lineWidth = 12;
           ctx.strokeStyle = "rgba(0,0,0,0.5)";
@@ -2796,8 +2860,17 @@
           ctx.arc(cx, cy, R + 5, 0, Math.PI * 2);
           ctx.stroke();
           ctx.lineWidth = 9;
-          ctx.strokeStyle = picked;
+          if (picked) {
+            ctx.strokeStyle = picked;
+          } else {
+            // Empty canvas: nothing will be picked, so a dashed neutral ring.
+            ctx.strokeStyle = state.bgColor;
+            ctx.stroke();
+            ctx.setLineDash([6, 6]);
+            ctx.strokeStyle = withAlpha(state.accentColor, 0.6);
+          }
           ctx.stroke();
+          ctx.setLineDash([]);
           ctx.lineWidth = 1;
           ctx.strokeStyle = "rgba(255,255,255,0.7)";
           ctx.beginPath();
@@ -3388,6 +3461,7 @@
         }
 
         function setExportMessage(message) {
+          if (message && !/…$/.test(message)) showToast(message);
           // Transient / error feedback lives on the publish control title (hover).
           if (message) {
             publishBtn.title = message;
@@ -3668,8 +3742,9 @@
           }
           try {
             await saveBlob(blob, "draw-" + rect.w + "x" + rect.h + ".png");
-            setExportMessage("Downloaded " + rect.w + "×" + rect.h);
-            if (state.links.length) showToast("Links are not included in a PNG");
+            setExportMessage(
+              "Downloaded " + rect.w + "×" + rect.h + (state.links.length ? " — links are not included in a PNG" : "")
+            );
           } catch (err) {
             setExportMessage(
               err && (err.code === "declined" || /cancel/i.test(err.message || ""))
@@ -3700,12 +3775,7 @@
             state.lastPublishSelection = cloneRect(rect);
             saveSettings();
             setExportMessage("");
-            exportFeedback.hidden = false;
-            exportLink.hidden = true;
-            exportCopied.title = "Image copied";
-            exportCopied.setAttribute("aria-label", "Image copied");
-            exportCopied.hidden = false;
-            if (state.links.length) showToast("Links are not included in a PNG");
+            showToast("Image copied" + (state.links.length ? " — links are not included in a PNG" : ""));
           } catch (err) {
             setExportMessage(err && err.message === "empty" ? "Nothing to export" : "Copy failed");
           } finally {
@@ -4039,7 +4109,7 @@
           ctx.stroke();
         }
 
-        // Per-colour label: hue in degrees ("–" for greys), saturation in
+        // Per-color label: hue in degrees ("–" for greys), saturation in
         // percent, and a legible ink.
         const pixelLabelCache = new Map();
         function pixelLabelFor(color) {
@@ -4305,7 +4375,12 @@
         }
 
         function touchDown(e) {
-          if (state.penId != null) return; // palm resting while drawing
+          if (state.penId != null) {
+            // A finger down while the Pencil/mouse is drawing holds snapping.
+            state.snapTouches.add(e.pointerId);
+            snapChanged();
+            return;
+          }
           capturePointer(canvas, e.pointerId);
           state.pointers.set(e.pointerId, {
             x: e.clientX,
@@ -4367,6 +4442,10 @@
         }
 
         function touchUp(e) {
+          if (state.snapTouches.delete(e.pointerId)) {
+            snapChanged();
+            return;
+          }
           if (!state.pointers.delete(e.pointerId)) return;
           if (state.eyeHold && state.eyeHold.id === e.pointerId) {
             // A held pick ends here; a quick tap falls through to the tap handling below.
@@ -4505,7 +4584,7 @@
             state.selection = selectionRectFromDrag(
               world,
               world,
-              e.shiftKey || state.shiftDown || state.snap
+              e.shiftKey || snapHeld()
             );
             syncActionButtons();
             state.needsDraw = true;
@@ -4566,7 +4645,7 @@
             state.selection = selectionRectFromDrag(
               state.selectAnchor,
               cell,
-              e.shiftKey || state.shiftDown || state.snap
+              e.shiftKey || snapHeld()
             );
             syncActionButtons();
             state.needsDraw = true;
@@ -4656,17 +4735,24 @@
           state.needsDraw = true;
         });
 
-        function syncSnapUi() {
-          snapBtn.classList.toggle("active", state.snap);
-          snapBtn.setAttribute("aria-pressed", state.snap ? "true" : "false");
+        // Snapping (lines to 45° steps, selections to the major grid) while
+        // Shift is held, or while a finger rests on the screen during a Pencil
+        // or mouse stroke (the iPad stand-in for Shift).
+        function snapHeld() {
+          return state.shiftDown || state.snapTouches.size > 0;
         }
 
-        // Quick menu: a ring of tools plus a "colours" item whose swatches open
+        function snapChanged() {
+          if (state.lining) state.needsDraw = true;
+          if (state.selecting) refreshSelectingRect(snapHeld());
+        }
+
+        // Quick menu: a ring of tools plus a "colors" item whose swatches open
         // as an outer ring when it's hovered. Opened by holding the squeeze
         // button (stand-in for Pencil Pro squeeze) or the right mouse button.
         // Hold mode: whatever is hovered when the button is released is picked.
         // If the button is released quickly, with nothing hovered, on the
-        // colours item, or iOS cancels the held touch, the menu stays open
+        // colors item, or iOS cancels the held touch, the menu stays open
         // (sticky) and the next tap picks; tapping the centre/outside cancels.
         // Tools the menu can show ("flex" = the previous tool); the order and
         // how many are shown come from Settings › Quick menu.
@@ -4853,7 +4939,7 @@
             if (item.submenu) quickMenu.colorsItem = item;
           });
 
-          // Swatch ring: a fan centred on the colours item, or the full circle
+          // Swatch ring: a fan centred on the colors item, or the full circle
           // when there are too many swatches to fan.
           const subEl = document.createElementNS(SVG_NS, "g");
           subEl.setAttribute("class", "qm-sub");
@@ -5014,7 +5100,7 @@
           const at = quickMenuItemAt(x, y);
           const hot = at.item || null;
           // Leaving the menu picks whatever is in that direction and closes it
-          // (leaving through colours just opens the swatch ring). Only once the
+          // (leaving through colors just opens the swatch ring). Only once the
           // pointer has been inside, so one that starts outside (a mouse on
           // the squeeze button) doesn't pick on its way in.
           if (!at.beyond) quickMenu.entered = true;
@@ -5023,7 +5109,7 @@
             closeQuickMenu(true);
             return;
           }
-          // Colours opens the swatch ring once the pointer reaches its arc (before
+          // Colors opens the swatch ring once the pointer reaches its arc (before
           // that the ring only previews, scaled by proximity); another main item
           // or the centre closes it.
           const d = Math.hypot(x - quickMenu.cx, y - quickMenu.cy);
@@ -5044,7 +5130,7 @@
 
         // Every arc slides out and grows with how close the pointer is (by
         // angle and by distance from its ring), and the swatch ring expands as
-        // the pointer nears the colours item, fully once colours is hovered.
+        // the pointer nears the colors item, fully once colors is hovered.
         function applyQuickMenuProximity(pt) {
           let d = 0;
           let angle = 0;
@@ -5162,7 +5248,7 @@
           if (quickMenu.sticky) {
             if (id !== quickMenu.tapId) return;
             if (released && hot && hot.submenu) {
-              quickMenu.tapId = null; // tapped colours: wait for a swatch tap
+              quickMenu.tapId = null; // tapped colors: wait for a swatch tap
               return;
             }
             closeQuickMenu(released);
@@ -5248,13 +5334,7 @@
         // Same entry points for testing from the console / web inspector.
         window.drawApp = { squeeze: nativeSqueeze, doubleTap: nativePencilDoubleTap };
 
-        function setSnap(on) {
-          state.snap = on;
-          syncSnapUi();
-          if (state.lining) state.needsDraw = true;
-          if (state.selecting) refreshSelectingRect(on || state.shiftDown);
-          saveSettings();
-        }
+
 
         canvas.addEventListener(
           "wheel",
@@ -5295,8 +5375,7 @@
         window.addEventListener("keydown", (e) => {
           if (e.key === "Shift") {
             state.shiftDown = true;
-            if (state.lining) state.needsDraw = true;
-            if (state.selecting) refreshSelectingRect(true);
+            snapChanged();
           }
           if (isTypingTarget(e.target)) return;
 
@@ -5358,6 +5437,10 @@
             }
             if (!palettesDialog.hidden) {
               closePalettesDialog();
+              return;
+            }
+            if (!exportMenu.hidden) {
+              closeExportMenu();
               return;
             }
             if (state.tool === "link" && (state.linkSel || state.linkSelLink)) {
@@ -5423,8 +5506,7 @@
         window.addEventListener("keyup", (e) => {
           if (e.key === "Shift") {
             state.shiftDown = false;
-            if (state.lining) state.needsDraw = true;
-            if (state.selecting) refreshSelectingRect(state.snap);
+            snapChanged();
           }
           if (e.code === "Space") {
             state.spaceDown = false;
@@ -5493,7 +5575,7 @@
           });
         });
 
-        // Quick menu settings: size, how many tools/colours, and tool order
+        // Quick menu settings: size, how many tools/colors, and tool order
         // (the first `tools` entries of the list are shown, in that order).
         bindOptionalNumber(qmScaleInput, {
           get: () => Math.round(state.qmScale * 100),
@@ -5552,6 +5634,14 @@
         loupeModeInput.addEventListener("change", () => {
           state.loupeMode = loupeModeInput.value === "pin" ? "pin" : "follow";
           saveSettings();
+        });
+        bindOptionalNumber(document.getElementById("hud-snap"), {
+          get: () => state.hudSnap,
+          set: (v) => {
+            state.hudSnap = v;
+          },
+          parse: (raw, fallback) => clampInt(raw, 0, 80, fallback),
+          onChange: () => saveSettings(),
         });
         bindOptionalNumber(loupeZoomInput, {
           get: () => state.loupeZoom,
@@ -5631,8 +5721,8 @@
           return state.editScheme || currentScheme();
         }
 
-        // Colour the settings swatch shows: the edited appearance's colour when
-        // matching the system, else the fixed colour.
+        // Color the settings swatch shows: the edited appearance's color when
+        // matching the system, else the fixed color.
         function shownCanvasColor(k) {
           return state.followSystem ? state.schemeColors[editedScheme()][k] : state[k];
         }
@@ -5654,7 +5744,7 @@
         followSystemInput.addEventListener("change", () => {
           state.followSystem = followSystemInput.checked;
           if (state.followSystem) {
-            // Keep what's on screen: the current appearance starts from today's colours.
+            // Keep what's on screen: the current appearance starts from today's colors.
             for (const k of CANVAS_COLOR_KEYS) state.schemeColors[currentScheme()][k] = state[k];
           }
           state.editScheme = null;
@@ -5676,7 +5766,7 @@
         const settingsBtn = document.getElementById("btn-settings");
         const settingsPanel = document.getElementById("settings-panel");
         // ---- Multiple palettes ----
-        // The active palette's colours live in state.palette (so the colour bar,
+        // The active palette's colors live in state.palette (so the color bar,
         // quick menu, eyedropper etc. use it directly); state.palettes holds all
         // of them, synced here before anything reads or replaces the list.
         const palettesDialog = document.getElementById("palettes-dialog");
@@ -5690,7 +5780,7 @@
         }
 
         // The Master palette (always first, can't be deleted) holds every
-        // colour that has a tile type. Types themselves are global (by hex), so
+        // color that has a tile type. Types themselves are global (by hex), so
         // links never depend on which palette is active.
         function masterPalette() {
           return state.palettes.find((p) => p.master) || null;
@@ -5708,7 +5798,7 @@
           return n;
         }
 
-        // Add any typed colour Master is missing (new types, imported maps).
+        // Add any typed color Master is missing (new types, imported maps).
         function syncMasterTypes() {
           syncActivePalette();
           const m = masterPalette();
@@ -5743,7 +5833,7 @@
             state.activePalette = 0;
           }
           if (!masterPalette()) {
-            // Older saves: add Master in front, seeded with every typed colour.
+            // Older saves: add Master in front, seeded with every typed color.
             const typed = Object.keys(state.tileTypes);
             state.palettes.unshift({
               name: "Master",
@@ -5812,7 +5902,7 @@
           saveSettings();
         }
 
-        // Move a colour from one palette to another (appended). The last colour
+        // Move a color from one palette to another (appended). The last color
         // of a palette is copied instead, since a palette can't be empty.
         function moveColor(from, k, to) {
           syncActivePalette();
@@ -5828,7 +5918,7 @@
             src.colors.splice(k, 1);
             if (src.index > k || src.index >= src.colors.length) src.index = Math.max(0, src.index - 1);
           } else {
-            showToast("Copied — a palette needs at least one colour");
+            showToast("Copied — a palette needs at least one color");
           }
           if (from === state.activePalette || to === state.activePalette) {
             const act = state.palettes[state.activePalette];
@@ -5895,7 +5985,7 @@
           });
         }
 
-        // Drag a colour swatch onto another palette's row to move it there.
+        // Drag a color swatch onto another palette's row to move it there.
         let palDrag = null;
         function palDragStart(e, from, k, color) {
           e.stopPropagation();
@@ -5990,7 +6080,6 @@
         const HUD_MIN_W = 66; // one 44px button + padding
         const HUD_MIN_H = 104; // grip + one 44px row + padding
         const HUD_DOUBLE_TAP_MS = 350;
-        const HUD_SNAP = 16; // px from the screen edge that snaps flush
         const huds = {
           tools: document.getElementById("hud-tools"),
           palette: document.getElementById("hud-palette"),
@@ -6013,8 +6102,9 @@
           if (name === "size") syncSizeHud();
           if (sized) {
             const min = HUD_MIN[name] || { w: HUD_MIN_W, h: HUD_MIN_H };
-            L.w = Math.max(min.w, Math.min(window.innerWidth, L.w));
-            L.h = Math.max(min.h, Math.min(window.innerHeight, L.h));
+            // Whole pixels, so a snapped edge sits exactly on the screen edge.
+            L.w = Math.round(Math.max(min.w, Math.min(window.innerWidth, L.w)));
+            L.h = Math.round(Math.max(min.h, Math.min(window.innerHeight, L.h)));
             el.style.width = L.w + "px";
             el.style.height = L.h + "px";
           } else {
@@ -6033,8 +6123,8 @@
           // Keep the whole panel on screen.
           const w = el.offsetWidth;
           const h = el.offsetHeight;
-          L.x = Math.max(0, Math.min(window.innerWidth - w, L.x));
-          L.y = Math.max(0, Math.min(window.innerHeight - h, L.y));
+          L.x = Math.round(Math.max(0, Math.min(window.innerWidth - w, L.x)));
+          L.y = Math.round(Math.max(0, Math.min(window.innerHeight - h, L.y)));
           el.style.left = L.x + "px";
           el.style.top = L.y + "px";
           el.style.right = "auto";
@@ -6165,10 +6255,10 @@
             // Edges that come close to the screen edge snap onto it.
             const W = window.innerWidth;
             const H = window.innerHeight;
-            if (d.corner[1] === "l" && left < HUD_SNAP) left = 0;
-            if (d.corner[1] === "r" && right > W - HUD_SNAP) right = W;
-            if (d.corner[0] === "t" && top < HUD_SNAP) top = 0;
-            if (d.corner[0] === "b" && bottom > H - HUD_SNAP) bottom = H;
+            if (d.corner[1] === "l" && left < state.hudSnap) left = 0;
+            if (d.corner[1] === "r" && right > W - state.hudSnap) right = W;
+            if (d.corner[0] === "t" && top < state.hudSnap) top = 0;
+            if (d.corner[0] === "b" && bottom > H - state.hudSnap) bottom = H;
             L.x = left;
             L.y = top;
             L.w = right - left;
@@ -6179,10 +6269,10 @@
             const h = el.offsetHeight;
             let x = d.x + dx;
             let y = d.y + dy;
-            if (x < HUD_SNAP) x = 0;
-            else if (x + w > window.innerWidth - HUD_SNAP) x = window.innerWidth - w;
-            if (y < HUD_SNAP) y = 0;
-            else if (y + h > window.innerHeight - HUD_SNAP) y = window.innerHeight - h;
+            if (x < state.hudSnap) x = 0;
+            else if (x + w > window.innerWidth - state.hudSnap) x = window.innerWidth - w;
+            if (y < state.hudSnap) y = 0;
+            else if (y + h > window.innerHeight - state.hudSnap) y = window.innerHeight - h;
             L.x = x;
             L.y = y;
           }
@@ -6341,7 +6431,7 @@
           true
         );
 
-        // Any interaction outside settings (and the colour picker it opened) closes it.
+        // Any interaction outside settings (and the color picker it opened) closes it.
         document.addEventListener(
           "pointerdown",
           (e) => {
@@ -6400,7 +6490,6 @@
         linkBtn.addEventListener("click", () => setTool("link"));
         undoBtn.addEventListener("click", () => undo());
         redoBtn.addEventListener("click", () => redo());
-        snapBtn.addEventListener("click", () => setSnap(!state.snap));
         deleteBtn.addEventListener("click", () => deleteSelection());
         cutBtn.addEventListener("click", () => cutSelection());
         copyBtn.addEventListener("click", () => copySelection());
@@ -6537,7 +6626,6 @@
           syncSettingsSections();
           applyHudLayouts();
           syncSizeHud();
-          syncSnapUi();
           buildPalette();
           // Apply tool UI without wiping restored selection
           brushBtn.classList.toggle("active", state.tool === "brush");
@@ -6573,7 +6661,7 @@
         // ---- Tile types & links (docs/map-links-spec.md) ----
         // Links live in world coordinates. An endpoint inside a lifted float is
         // stored float-relative ({x, y, f: true}) so it moves with the float.
-        // Each link remembers its endpoint colours (fc / tc) so edits can be
+        // Each link remembers its endpoint colors (fc / tc) so edits can be
         // detected and re-checked (spec §6.2).
         const LINK_HIT_PX = 22;
         const LINK_BAD = "#ff3b30";
@@ -6614,7 +6702,7 @@
           return false;
         }
 
-        // Colour shown at a cell: the float on top, else the canvas.
+        // Color shown at a cell: the float on top, else the canvas.
         function colorAtCell(x, y) {
           const f = state.float;
           if (f && x >= f.x && y >= f.y && x < f.x + f.w && y < f.y + f.h) {
@@ -6653,7 +6741,7 @@
           );
         }
 
-        // §6.2: re-check links whose endpoint colour changed since last check.
+        // §6.2: re-check links whose endpoint color changed since last check.
         function checkLinks() {
           if (!state.links.length) return;
           let removed = 0;
@@ -6837,7 +6925,7 @@
             parts.push({ text: bad + " invalid link" + (bad === 1 ? "" : "s"), btn: "Remove", act: "invalid" });
           }
           if (state.legacyOffer) {
-            parts.push({ text: "Legacy colours found", btn: "Convert links", act: "legacy" });
+            parts.push({ text: "Legacy colors found", btn: "Convert links", act: "legacy" });
           }
           const k = JSON.stringify(parts);
           if (k === statusKey) return;
@@ -6887,7 +6975,7 @@
           updateMapStatus();
         });
 
-        // ---- Tile types in the colour picker (§3.2) ----
+        // ---- Tile types in the color picker (§3.2) ----
         function syncTypeRow() {
           const slot = colorPicker.paletteSlot;
           cpTypeRow.hidden = slot == null;
@@ -6941,7 +7029,7 @@
           if (e.key === "Enter") cpType.blur();
         });
 
-        // A typed swatch's colour moved: carry the type and its tiles along.
+        // A typed swatch's color moved: carry the type and its tiles along.
         // Returns false if the edit must be refused.
         function retypeSwatchColor(index, oldHex, newHex) {
           const t = state.tileTypes[oldHex];
@@ -6954,8 +7042,8 @@
             pushUndo(true);
             colorPicker.typeUndo = true;
           }
-          // Types are global: move it, recolour its tiles, and update every
-          // palette that holds the colour (the Master palette included).
+          // Types are global: move it, recolor its tiles, and update every
+          // palette that holds the color (the Master palette included).
           state.tileTypes[newHex] = { ...t };
           delete state.tileTypes[oldHex];
           for (const [k, c] of pixels) if (c === oldHex) pixels.set(k, newHex);
@@ -7148,11 +7236,12 @@
           ctx.arc(b.x, b.y, Math.max(1.5, 4 * k), 0, Math.PI * 2);
           ctx.fill();
           if (target) {
-            const x = state.camX + target.x * s;
-            const y = state.camY + target.y * s;
-            const pad = w / 2 + k;
-            ctx.lineWidth = w;
-            ctx.strokeRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
+            const x = Math.round(state.camX + target.x * s);
+            const y = Math.round(state.camY + target.y * s);
+            const size = Math.max(1, Math.round(state.camX + (target.x + 1) * s) - x);
+            const bw = Math.min(w, size / 3);
+            ctx.lineWidth = bw;
+            ctx.strokeRect(x + bw / 2, y + bw / 2, size - bw, size - bw);
           }
           ctx.restore();
         }
@@ -7303,8 +7392,6 @@
             const pa = cellCenter(a, s);
             const pb = cellCenter(b, s);
             const ang = Math.atan2(pb.y - pa.y, pb.x - pa.x);
-            const back = Math.min(s * 0.35, Math.hypot(pb.x - pa.x, pb.y - pa.y) / 3);
-            const tip = { x: pb.x - Math.cos(ang) * back, y: pb.y - Math.sin(ang) * back };
             const color = valid ? linkColorFor(a) : LINK_BAD;
             ctx.save();
             ctx.globalAlpha = dim ? 0.45 : 0.95;
@@ -7316,7 +7403,7 @@
             if (!valid) ctx.setLineDash([Math.max(2, 6 * k), Math.max(1.5, 4 * k)]);
             ctx.beginPath();
             ctx.moveTo(pa.x, pa.y);
-            ctx.lineTo(tip.x, tip.y);
+            ctx.lineTo(pb.x, pb.y);
             if (valid) {
               ctx.strokeStyle = LINK_HALO;
               ctx.lineWidth = width + lw(2);
@@ -7326,10 +7413,17 @@
             }
             ctx.stroke();
             ctx.setLineDash([]);
+            // Arrowhead centred on the end of the line (the target's centre).
+            const th = head * Math.cos(0.45); // triangle height
+            const hw = head * Math.sin(0.45); // half base
+            const ux = Math.cos(ang);
+            const uy = Math.sin(ang);
+            const bx = pb.x - (ux * th) / 3;
+            const by = pb.y - (uy * th) / 3;
             ctx.beginPath();
-            ctx.moveTo(tip.x, tip.y);
-            ctx.lineTo(tip.x - head * Math.cos(ang - 0.45), tip.y - head * Math.sin(ang - 0.45));
-            ctx.lineTo(tip.x - head * Math.cos(ang + 0.45), tip.y - head * Math.sin(ang + 0.45));
+            ctx.moveTo(pb.x + (ux * th * 2) / 3, pb.y + (uy * th * 2) / 3);
+            ctx.lineTo(bx - uy * hw, by + ux * hw);
+            ctx.lineTo(bx + uy * hw, by - ux * hw);
             ctx.closePath();
             ctx.fill();
             ctx.beginPath();
@@ -7340,17 +7434,19 @@
 
           if (inLinkTool && state.linkSel) {
             // Bright border on the selected source and on each tile it links to.
+            // Drawn inside the tile, so neighbouring highlights never overlap.
             const border = (p, color, w0) => {
-              const x = state.camX + p.x * s;
-              const y = state.camY + p.y * s;
-              const w = lw(w0);
-              const pad = w / 2 + k;
-              ctx.lineWidth = w + lw(2);
+              const x = Math.round(state.camX + p.x * s);
+              const y = Math.round(state.camY + p.y * s);
+              const size = Math.max(1, Math.round(state.camX + (p.x + 1) * s) - x);
+              const w = Math.min(lw(w0), size / 3);
+              const halo = Math.min(w + lw(1.5), size / 2);
+              ctx.lineWidth = halo;
               ctx.strokeStyle = "rgba(0,0,0,0.8)";
-              ctx.strokeRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
+              ctx.strokeRect(x + halo / 2, y + halo / 2, size - halo, size - halo);
               ctx.lineWidth = w;
               ctx.strokeStyle = color;
-              ctx.strokeRect(x - pad, y - pad, s + pad * 2, s + pad * 2);
+              ctx.strokeRect(x + w / 2, y + w / 2, size - w, size - w);
             };
             const color = linkColorFor(state.linkSel);
             ctx.save();
@@ -7493,6 +7589,79 @@
 
         copyMapBtn.addEventListener("click", copyMap);
         downloadMapBtn.addEventListener("click", downloadMap);
+
+        // Export: tap copies the map; hold (or right-click) opens a menu with
+        // every export option.
+        const exportBtn = document.getElementById("btn-export");
+        const exportMenu = document.getElementById("export-menu");
+        const EXPORT_HOLD_MS = 450;
+        let exportHold = null;
+        let exportSuppressClick = 0;
+
+        function openExportMenu() {
+          syncActionButtons();
+          exportMenu.hidden = false;
+          const b = exportBtn.getBoundingClientRect();
+          const m = exportMenu.getBoundingClientRect();
+          const left = b.right + 8 + m.width <= window.innerWidth ? b.right + 8 : Math.max(8, b.left - 8 - m.width);
+          const top = Math.max(8, Math.min(window.innerHeight - m.height - 8, b.top + b.height / 2 - m.height / 2));
+          exportMenu.style.left = left + "px";
+          exportMenu.style.top = top + "px";
+        }
+
+        function closeExportMenu() {
+          exportMenu.hidden = true;
+        }
+
+        exportBtn.addEventListener("pointerdown", (e) => {
+          if (e.button !== 0) return;
+          const h = { id: e.pointerId, x: e.clientX, y: e.clientY };
+          h.timer = setTimeout(() => {
+            if (exportHold !== h) return;
+            exportHold = null;
+            exportSuppressClick = performance.now() + 1000;
+            openExportMenu();
+          }, EXPORT_HOLD_MS);
+          exportHold = h;
+        });
+        const endExportHold = (e) => {
+          if (exportHold && e.pointerId === exportHold.id) {
+            clearTimeout(exportHold.timer);
+            exportHold = null;
+          }
+        };
+        window.addEventListener("pointerup", endExportHold);
+        window.addEventListener("pointercancel", endExportHold);
+        window.addEventListener("pointermove", (e) => {
+          if (exportHold && e.pointerId === exportHold.id && Math.hypot(e.clientX - exportHold.x, e.clientY - exportHold.y) > 10) {
+            endExportHold(e);
+          }
+        });
+        exportBtn.addEventListener("click", () => {
+          if (performance.now() < exportSuppressClick) {
+            exportSuppressClick = 0;
+            return;
+          }
+          copyMap();
+        });
+        exportBtn.addEventListener("contextmenu", (e) => {
+          e.preventDefault();
+          openExportMenu();
+        });
+        // Picking an item closes the menu; tapping elsewhere just closes it.
+        exportMenu.addEventListener("click", (e) => {
+          if (e.target.closest(".export-item")) closeExportMenu();
+        });
+        document.addEventListener(
+          "pointerdown",
+          (e) => {
+            if (exportMenu.hidden) return;
+            if (exportMenu.contains(e.target) || exportBtn.contains(e.target)) return;
+            closeExportMenu();
+            swallowTap(e);
+          },
+          true
+        );
 
         // ---- Map import (§7.2) ----
         function parseMapText(text) {
